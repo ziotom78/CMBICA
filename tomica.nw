@@ -1,0 +1,689 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+% This is a Noweb file describing and providing the implementation of FastICA,
+% a program to separate foreground components from sky maps.
+% You can either extract a LaTeX document describing the code or the code
+% itself from this file by using "noweave" or "notangle". It is better however
+% to use the Makefile provided with this distribution, as it uses the
+% appropriate command line switches for each command.
+%
+% Author: Maurizio Tomasi, 2010
+
+\documentclass[a4paper,10pt,twoside]{article}
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage{noweb}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{ccaption}
+\usepackage{textcomp}
+\usepackage{titlesec}
+\usepackage{mathpazo}
+\usepackage[round]{natbib}
+
+\hyphenation{fast-ica}
+
+% Command used to indicate a section
+\newcommand{\sectmark}{\S\ }
+
+\titleformat{\section}[block]
+  {\centering\normalfont\bfseries}
+  {\sectmark\thesection.}{.5em}{}
+\titleformat{\subsection}[runin]
+  {\normalfont\bfseries}
+  {\thesubsection.}{.5em}{}[. ]
+\titleformat{\subsubsection}[runin]
+  {\normalfont\bfseries}
+  {}{.2em}{}[. ]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\sectionmark}[1]{%
+  \markright{\thesection.\ #1}}
+\fancyhf{}
+\fancyhead[L,RO]{\bfseries\thepage}
+\fancyhead[LO]{\bfseries\rightmark}
+\fancyhead[RE]{\bfseries\leftmark}
+
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\captionnamefont{\small\bfseries}
+\captiontitlefont{\small\itshape}
+
+\hypersetup{pdftitle={FastICA},
+pdfauthor=Maurizio Tomasi,
+pdfsubject={Commented implementation of the FastICA program},
+pdfkeywords={CMB {data analysis} {component separation}},
+pdfborder={0 0 0}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\FastICA}{\textsc{FastICA}}
+
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\vers}[1]{\mathbf{\hat{#1}}}
+
+\begin{document}
+
+\bibliographystyle{plainnat}
+
+\title{\FastICA}
+\author{D.~Maino, C.~Burigana, M.~Tomasi}
+\maketitle
+
+\begin{abstract}
+This document describes the implementation of \FastICA{}, a program to separate
+the foregrounds components from the CMB in a set of full-sky or partial-sky
+maps.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+
+\FastICA{} is a Python program which runs the ``FastICA'' algorithm\footnote{In
+this document we shall indicate the algorithm with FastICA (without capitals)
+and the program which implements it with \FastICA{}.}
+\citep{1997HyvarinenFastICA,2002MainoFastICA} on a number of sky maps at
+different frequencies, attempting to separate foreground components from the
+Cosmic Microwave Background (CMB). It exploits the fact that each foreground
+component has a non-gaussian (i.e.\ white) profile distinct from everything
+else, and that the CMB is the only gaussian contribution to the sky
+temperature. This approach is used by a number of analysis tools similar to
+\FastICA{}, e.g.\ SMICA, AltICA and others.
+
+The source code of \FastICA{} uses a number of Python libraries:
+\begin{enumerate}
+\item Optparse, for interpreting command line switches (see
+par.~\ref{sec:commandLineParsing}).
+
+\item Logging, for writing log messages to standard error or any text file (see
+par.~\ref{sec:logging}).
+
+\item ConfigObj, for reading, validating and interpreting parameter files (see
+par.~\ref{sec:paramFileParsing}).
+
+\item HealPy, for reading and writing FITS maps. Note that HealPy is
+based on Healpix \citep{2005GorskiHEALPix}.
+
+\item NumPy, a library of low-level fast numerical routines.
+
+\item SciPy, a library of high-level numerical routines (mainly used to find
+eigenvalues and eigenvectors).
+\end{enumerate}
+This implementation of \FastICA{} has been created using the ``Literate
+Programming'' approach to development. The [[noweb]] tool is required to create
+this documentation as well as the Python program to be run.
+
+In this document we illustrate the implementation of \FastICA{}. The outline of
+the document is the following: \S~\ref{sec:Main} discusses the general behavior
+of the program (i.e.\ the implementation of [[main]]),
+\S~\ref{sec:FastICAAlgorithms} implements the mathematical formulae of the
+FastICA algorithm and the appendices contain ancillary classes and functions
+used by the program.
+
+
+\section{The main program}
+\label{sec:Main}
+
+\FastICA{} is a single-run program. This means that every time the
+program is executed, it performs just \emph{one} analysis and then
+exits. Performing multiple analyses (i.e.\ in a Monte Carlo
+simulation) requires the user to run the program multiple times.
+
+Unlike the previos incarnation of \FastICA{} (version 1.0), the current
+implementation does not allow the user to interactively insert the input needed
+for the program (e.g.\ the path to the FITS files containing the maps), but
+instead it requires the user to provide a \emph{parameter file} containing all
+the information necessary to run the program in batch mode.
+
+The program can be run in two modes:
+\begin{enumerate}
+\item In the normal mode, the user specifies a list of FITS maps to be
+processed by the program in a parameter file, together with all the relevant
+settings desired for the analysis (e.g.\ whether to use a mask or not).
+
+\item For debugging and development purposes, \FastICA{} can be run in
+\emph{test mode}. Doing so will make the program execute a number of internal
+consistency checks that ensure the code behaves as expected and then quits. The
+average user is not likely to use this feature.
+\end{enumerate}
+
+In the following paragraphs we are going to first define a number of functions
+dealing with user-interface tasks (e.g.\ interpreting the parameter file,
+initializing the logging system\ldots). The overall shape of the main program
+will finally be provided in sect.~\ref{sec:mainProgram}.
+
+
+\subsection{Command-line parsing}
+\label{sec:commandLineParsing}
+
+To parse the command-line we use the \texttt{optparse} Python library:
+<<Import statements>>=
+from optparse import OptionParser
+@
+
+The following function creates and initializes a variable of type
+[[OptionParser]], which is then used to parse the contents of [[sys.argv]]:
+
+<<Function definitions>>=
+def parse_command_line ():
+    '''Parse the command line using an OptionParser object.
+
+    Return a (OPTIONS, ARGS) pair.'''
+
+    parser = OptionParser (usage = 'Usage: %prog [OPTIONS] PARAM_FILE',
+			   version = '%%prog %s' % VERSION,
+			   description = 'Apply the FastICA algorithm to'
+			   + 'a set of maps')
+
+    parser.add_option ('-l', '--log-level', dest = 'log_level',
+		       type = 'string', default = 'info',
+		       help = 'Specify the logging level '
+		       + '(choices: "debug", "info", "warning", '
+		       + '"error", "critical"). '
+		       + 'Default is "info".')
+    parser.add_option ('--log-file', dest = 'log_file', type = 'string',
+		       help = 'Name of the file where to write log '
+		       + 'messages (if not specified, stderr will be used.)',
+		       default = '')
+
+    parser.add_option ('--test', dest = 'test_mode', action = 'store_true',
+		       help = 'Run a number of test cases and quit.')
+    parser.set_defaults (test_mode = False)
+
+    return parser.parse_args ()
+@ %def parse_command_line
+
+Many of the options allow the user to configure the way the program logs its
+activities. See sect.~\ref{sec:logging} for further details.
+
+
+\subsection{Initialization of the logging system}
+\label{sec:logging}
+
+\FastICA{} uses the \texttt{logging} Python library to write
+information/warning/error messages. They can be sent either to standard error
+or to a file. We include the module in the main program using the
+[[log]] shorthand:
+<<Import statements>>=
+import logging as log
+@
+
+Function [[init_logging]] is used to initialize the logging system using the
+preferences specified within the command-line. There are two flags used to
+configure the system: \texttt{--log-level} specifies the types of messages to
+be logged, and \texttt{--log-file} specifies the file name where to write log
+messages (if not specified, messages are printed to the standard error stream).
+The two parameters are passed through the [[options]] dictionary (which is
+built by the [[parse_command_line]] function):
+
+<<Function definitions>>=
+def init_logging (options):
+    '''Initialize the logging system.
+
+    `options' is a dictionary of the command-line options provided by the
+    user.'''
+
+    log_levels = { 'debug'    : log.DEBUG,
+                   'info'     : log.INFO,
+                   'warning'  : log.WARNING,
+                   'error'    : log.ERROR,
+                   'critical' : log.CRITICAL }
+
+    format = '[%(asctime)s %(levelname)s] %(message)s'
+    if options.log_file:
+        log.basicConfig (filename = options.log_file,
+			 filemode = 'w',
+			 format = format,
+			 level = log_levels[options.log_level])
+    else:
+        log.basicConfig (format = format,
+			 level = log_levels[options.log_level])
+@ %def init_logging
+
+
+\subsection{Definition of the fields allowed in the parameter file}
+\label{sec:paramFileParsing}
+
+We read the parameter file specified on the command line using the
+ConfigObj\footnote{The users acquainted with the ConfigObj library are probably
+used to ``config files'' instead of ``parameter files''. Here we follow the
+convention used by a number of modules in the Planck/LFI pipeline.} class:
+<<Import statements>>=
+from configobj import ConfigObj
+from validate import Validator
+@
+
+In function [[read_param_file]] we build a [[Validator]] to check the syntax of
+the parameter file and set the default values:
+
+<<Function definitions>>=
+def read_param_file (args):
+    'Read the parameter file. `args'' is the list of command-line arguments.'
+
+    if len (args) != 1:
+	log.critical ('Error: you must provide the name of ' +
+		      'one parameter file on the command line.')
+	sys.exit (1)
+
+    dict = {
+	'map_file_names': 'string_list (min = 2)',
+	'source_path'   : 'string (default = ".")'
+    }
+    param_validator = Validator (dict)
+    params = ConfigObj (args[0],
+			configspec = 'fastica.configspec')
+    params.validate (param_validator)
+
+    return params
+@ %def read_param_file
+
+The file names to be specified for [[map_file_names]] must be separated by a
+comma. Each name can be specified in the following ways:
+\begin{enumerate}
+\item The plain file name, optionally prepended by an absolute or relative path:
+\begin{verbatim}
+/opt/data/dmr/dmr_31a_4yr.fits
+\end{verbatim}
+
+\item As above, followed by a colon ('\verb|:|') and a zero-based integer
+number specifying the column number in the FITS file to be used:
+\begin{verbatim}
+/opt/data/dmr/dmr_31a_4yr.fits:4
+\end{verbatim}
+\end{enumerate}
+
+The [[normalize_map_file_names]] function takes as input a list of $N$ strings in one of
+the forms listed above and returns a list of $N$ tuples each composed by the
+undecorated file name and the integer index (0 is the default):
+<<Function definitions>>=
+def split_file_names (x):
+    '''Given `x' (a list of N strings), return a N-element list containing
+    2-tuples of the form (file,idx), where `idx' is either 0 or a number at the
+    end of `x[i]'. The default for `idx' (when not specified) is 0.
+
+    >>> split_file_names (['f1.fits', 'f2.fits:0', 'f3.fits:5'])
+    [('f1.fits', 0), ('f2.fits', 0), ('f3.fits', 5)]
+    '''
+
+    result = []
+    for cur_file in x:
+	cur_split = cur_file.split (':')
+	if len (cur_split) == 1:
+	    cur_split = (cur_split[0], 0)
+	else:
+	    cur_split[1] = int (cur_split[1])
+
+	result.append (tuple (cur_split))
+
+    return result
+@ %def split_file_names
+
+When e read a set of maps specified by the user, we need to assess whether they
+are compatible with the requirements of \FastICA, i.e.\ they must have the same
+pixel ordering scheme and the same resolution. We start by defining a function
+which checks if the elements of a list are all equal:
+<<Function definitions>>=
+def all_equal (x):
+    '''Return True if all the elements of `x' (a list or a tuple) are equal.
+
+    >>> all_equal ([1, 1, 1])
+    True
+    >>> all_equal (['A', 'A', 'B', 'A'])
+    False'''
+
+    return np.all ([elem == x[0] for elem in x])
+@ %def all_equal
+
+The [[all_equal]] function is the core of the following
+[[check_map_hdr_consistency]], which takes a set of FITS headers
+(the [[headers]] argument must be a list or tuple of dictionaries) and compares
+the values of [[NSIDE]] and [[ORDERING]]. The function quits the program if
+such field do not have the same value among the headers:
+<<Function definitions>>=
+def check_map_hdr_consistency (headers):
+    '''Given a set of Healpix headers (dictionaries), checks for their
+    consistency. The function only returns if all went ok, otherwise the
+    program quits.'''
+
+    if not all_equal ([x['NSIDE'] for x in headers]):
+	log.critical ('Maps do not have the same value for NSIDE')
+
+    if not all_equal ([x['ORDERING'] for x in headers]):
+	log.critical ('Maps do not have the same value for ORDERING')
+@ %def check_map_hdr_consistency
+
+Function [[read_healpix_files]] reads a set of map files (specified through
+[[(file,idx)]] pairs so that we can use [[split_file_names]] here) and checks
+for their consistency by comparing ther headers.  This is accomplished by using
+the [[h = True]] flag in calling [[healpy.read_map]], so that the result is a
+pair containing the array of pixels and the header (note that we convert the
+header into a dictionary: this is mandatory for using
+[[check_map_hdr_consistency]]).
+
+<<Function definitions>>=
+def read_healpix_files (map_files):
+    '''Read a set of N map files and return a NxM matrix, where M is the number
+    of pixels in each map.
+
+    Each element of `map_files' must be a (name,idx) tuple specifying both the
+    FITS file name and the column index within the file.'''
+
+    maps = []
+    headers = []
+    for (MAP_FILE_NAME, COLUMN) in map_files:
+	log.info ('Reading column %d of file %s' % (COLUMN, MAP_FILE_NAME))
+	cur_map = healpy.read_map (MAP_FILE_NAME, COLUMN,
+				   nest = None, h = True)
+
+	maps.append (cur_map[0])
+	headers.append (dict (cur_map[1]))
+
+    check_map_hdr_consistency (headers)
+    log.debug ('The maps appear to be consistent, NPIXELS = %d'
+	       % maps[0].size)
+    return maps
+@ %def read_healpix_files
+
+We have to import HealPy in the main program, of course:
+<<Import statements>>=
+import healpy
+@
+
+\subsection{Output of the Results and Clean Up}
+
+As this is still a test program, our only ``results'' are the parameters we
+have read from the parameter file. So we do nothing at the moment:
+<<Save and print the results>>=
+print "WHITENING_MATRIX ="
+print WHITENING_MATRIX
+
+print "DEWHITENING_MATRIX ="
+print DEWHITENING_MATRIX
+
+# Save the whitened maps
+for i in xrange (WHITENED_MAPS.shape[0]):
+    file_name = 'out%d.fits' % i
+    log.info ('Writing file %s (%d pixels)'
+	      % (file_name, len (WHITENED_MAPS[i,:])))
+    healpy.write_map (file_name, WHITENED_MAPS[i,:])
+@
+
+At the end, it is better to de-allocate any memory we acquired during the
+procressing. (This is not strictly necessary, as the operating system will do
+this for us. But it is always a good thing to do, as if the memory got
+corrupted during the execution of the program because of some bugs, we would
+get a segmentation fault here signaling the bug.)
+<<Clean up>>=
+# Clean up
+@
+
+
+\subsection{Definition of the main program}
+\label{sec:mainProgram}
+
+Having put all the necessary functions in shape, we can now provide the main
+skeleton of the program:
+<<*>>=
+#!/usr/bin/env python
+
+import sys
+import os
+import numpy as np
+
+<<Import statements>>
+
+VERSION = '2.0.0'
+
+<<Function definitions>>
+
+(OPTIONS, ARGS) = parse_command_line ()
+
+if OPTIONS.test_mode:
+    import doctest
+
+    doctest.testmod ()
+    sys.exit (0)
+
+init_logging (OPTIONS)
+log.info ('Execution started, FastICA %s', VERSION)
+
+PARAMS = read_param_file (ARGS)
+FULL_MAP_NAMES = [os.path.join (PARAMS['source_path'], x)
+                  for x in PARAMS['map_file_names']]
+MAPS = read_healpix_files (split_file_names (FULL_MAP_NAMES))
+MAPS_WO_MONOPOLE = remove_monopole_from_maps (MAPS)
+(WHITENING_MATRIX, DEWHITENING_MATRIX) = whiten_maps (MAPS_WO_MONOPOLE)
+WHITENED_MAPS = np.dot (WHITENING_MATRIX, MAPS_WO_MONOPOLE)
+<<Run the FastICA algorithm>>
+<<Save and print the results>>
+<<Clean up>>
+
+log.info ('Execution ended')
+@ %def main
+
+We have still to define the behavior of [[whiten_maps]] and [[run_fastica]].
+This is going to be done in sect.~\ref{sec:FastICAAlgorithms}.
+
+
+\section{The Numerical Algorithms used in the Code}
+\label{sec:FastICAAlgorithms}
+
+In this section we discuss the implementation of the mathematical formulae
+needed by the FastICA algorithm. There are two algorithms that need to be
+implemented:
+\begin{enumerate}
+\item The FastICA algorithm itself;
+\item A method which improves the uncorrelatedness of the maps. Such process is
+called \emph{whitening} and is a step to be made \emph{before} applying the
+FastICA algorithm. The reason is that whitening transforms data matrix $X$ into
+a new matrix $X'$ whose correlation matrix is unity --- this property is then
+used extensively by the FastICA algorithm.
+\end{enumerate}
+
+\subsection{The \FastICA{} algorithm}
+
+The FastICA algorithm is an iterative ICA algorithm which is analogous to a
+self-learning neural network \citep{2000BaccigalupiNNinForegroundSeparation},
+but it grants cubic convergence. The algorithm and the proof of convergence
+have been described by \citet{1997HyvarinenFastICA}. It requires the following
+steps to be performed \emph{for each component to be reconstructed} -- $k$ is
+the zero-based index of the iteration:
+
+\begin{enumerate}
+\item Take a random initial versor $\vers{w}(0)$ with $m$ components, with $m$
+being the number of maps.
+\item If $g$ and $g'$ are respectively an invertible function from
+$\mathbb{R}^+$ to $\mathbb{R}$ and its derivative, let
+\begin{equation}
+\vers{w} (k) = E \bigl(\vect{x} g (\vers{w}^T (k - 1) \cdot \vect{x}) \bigr)
+- g' \bigl(\vers{w}^T (k - 1) \cdot \vect{x} \bigr),
+\end{equation}
+and normalize $\vers{w}$ by dividing it by its norm. The purpose of $g$ is to
+introduce a nonlinear step in the process to increase the convergence speed.
+\citet{1997HyvarinenFastICA} use $g(u) = u^3$, while \citet{2002MainoFastICA}
+propose three different functions: $g(u) = u^3$, $g(u) = \tanh u$, $g(u) = \exp
+(-u^2)$.
+\item If $\left| \vers{w}^T (k) \cdot \vers{w} (k - 1) \right|$ is not sufficiently
+close to unity, let $k \leftarrow k + 1$ and repeat from point 1.
+\end{enumerate}
+
+The $\vers{w}^T$ obtained by this process is a row of the matrix $W$ which
+performs the component separation.  To extract all the components from the $m$
+maps instead of just one (i.e.\ to estimate all the rows of matrix $W$), the
+algorithm must be modified in order for the $i$-th component to be searched in
+a space orthogonal to the previous $i - 1$.  This is done by means of a
+modified Gram-Schmidt algorithm.
+
+<<Run the FastICA algorithm>>=
+# To be written
+@
+
+
+\subsection{Whitening the Noise in the Maps}
+
+The so-called \emph{whitening step} of the \FastICA{} algorithm aims to improve
+the statistical properties of the signal needed by the algorithm itself by
+using the principles of Principal Component Analysis (PCA).
+
+Principal Component Analysis is a special kind of orthogonal transformation
+(rotation) that, when applied to a set of $n$ vectors $\{e_i\}_{i=1}^n$,
+produces a new set of $n$ vectors $\{e_i'\}_{i=1}^n$ sorted in decreasing order
+according to their variance. The point is that the most interesting stuff has
+been moved to the first $m$ vectors (with $m$ being some number smaller than
+$n$ so that $e_{m+1}$ is the first vector that can be considered ``almost''
+constant).  Thus, PCA is a way to reduce the dimensionality of a dataset by
+``selecting'' preferred directions and throwing away those components that do
+not vary too much. In this context, we shall treat ``PCA'' as a synonim for
+``whitenization''.
+
+\begin{figure}[tbf]
+    \centering
+    \includegraphics[width=0.45\textwidth]{correlation-dmr.pdf}
+    \includegraphics[width=0.45\textwidth]{correlation-dmr-whitened.pdf}
+    \caption{\label{fig:correlationDMR} Left: correlation between the (Healpix)
+sky maps produced by COBE DMR at 31\,GHz and 53\,GHz. The correlation
+coefficient $r$ is 0.72. Right: the same maps after having been whitened: now
+the correlation is nearly zero (because the covariance matrix is unity).}
+\end{figure}
+
+One can easily see that the sky shows some correlation at different
+frequencies: take for instance fig.~\ref{fig:correlationDMR}, which visually
+shows the correlation between the 31\,GHz and the 53\,GHz channels of COBE-DMR.
+This means that the $n \times m$ matrix $X$ containing data from the $m$ maps
+has a covariance matrix which has nonzero off-diagonal elements.
+\FastICA{} uses PCA to transform $X$ into a new matrix $X'$ of the same size
+which has the covariance matrix equal to unity. Doing so is important for the
+application of the \FastICA\ algorithm.
+
+The method used by \FastICA\ to transform $X$ into $X'$ is a standard technique
+and is described in \citet[ch.~1]{JolliffePCA}. It requires to build a $n
+\times n$ matrix with the eigenvectors of the covariance matrix (a symmetric
+real matrix -- this grants that the eigenvalues are all real) sorted according
+to the absolute value of their eigenvalues in decreasing order. Such matrix is
+orthogonal and therefore represents a base change: in our case it is equal to
+the ``whitening matrix'' which does the PCA. Mathematically, if $\Sigma$ is the
+covariance matrix of the noise and $C$ the covariance matrix of the map (i.e.\
+signal \emph{and} noise), the orthogonal matrix which represents the base
+change is $(C - \Sigma)^{1/2}$.  Therefore, if the maps are stored in matrix
+$X$, PCA produces a new set of maps $X'$ according to the following formula:
+\begin{equation}
+\label{eq:mapPCA}
+X' = (C - \Sigma)^{-1/2} X.
+\end{equation}
+The covariance matrix $\Sigma'$ for the new maps is
+\begin{equation}
+\label{eq:sigmaPCA}
+\Sigma' = (C - \Sigma)^{-1/2} \Sigma (C - \Sigma)^{1/2},
+\end{equation}
+It is easy to prove that $X'$ has a covariance matrix equal to unity.
+
+We start defining two basic functions: the first one,
+[[remove_monopole_from_maps]], removes the average value from a set of maps and
+returns a $n\times m$ matrix, with $n$ being the number of pixels per map and
+$m$ the number of components:
+<<Function definitions>>=
+def remove_monopole_from_maps (maps):
+    'Remove the monopole from every map and return a numpy array.'
+    map_matrix = np.array (maps)
+    for idx in xrange (len (maps)):
+	map_matrix[idx,:] = maps[idx] - np.mean (maps[idx])
+
+    return map_matrix
+@ %def remove_monopole_from_maps
+
+The second function, [[get_ordered_eig]], returns a tuple containing the
+eigenvalues and eigenvectors of the real symmetric matrix [[x]], sorted
+accorted to their decreasing magnitude:
+<<Function definitions>>=
+def get_ordered_eig (x):
+    '''Return (V, D) where V and D are the eigenvalues and
+    eigenvectors of `x' (a real symmetrix matrix). They are
+    sorted in decreasing order of the eigenvalues' magnitudes.
+
+    >>> get_ordered_eig (np.array ([[-2, 3], [3, -10]]))[0]
+    array([-11.,  -1.])
+    '''
+
+    (evals, evects) = linalg.eigh (x)
+
+    # Sort the eigenvalues in decreasing order
+    perm = np.argsort (-np.abs (evals))
+    return (evals[perm], evects[:,perm])
+@ %def get_ordered_eig
+Since the [[linalg]] module is part of the [[scipy]] package, we must import it
+at the beginning of the main program:
+<<Import statements>>=
+from scipy import linalg
+@
+
+We have now all the necessary pieces to write [[whiten_maps]]. Note that we are
+not going to call [[remove_monopole_from_maps]] within [[whiten_maps]], since
+we are going to use the matrix of zero-mean maps also outside [[whiten_maps]].
+Therefore, we assume here that [[map_matrix]] is the result of a previous call
+to [[remove_monopole_from_maps]]:
+<<Function definitions>>=
+def whiten_maps (map_matrix):
+    '''Given a matrix representing `m' zero-mean maps, return a pair containing
+    the whitening/dewhitening matrices.'''
+
+    <<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>
+    <<Compute the whitening and dewhitening matrices>>
+    return (whitening_matrix, dewhitening_matrix)
+@ %def whiten_maps
+\noindent where [[map_matrix]] is the $X$ in eq.~\eqref{eq:mapPCA}, a $n\times
+m$ matrix containing the $n$ maps each with $m = 12\times \mathrm{NSIDE}^2$
+pixels.
+
+Estimating the covariance matrix $C$ is a simple matter of multiplying $X$ for
+$X^t$ and scaling by the number of maps. We can use the BLAS function [[dgemm]]
+to do everything in one operation. Having $C$ we can look for its eigenvalues
+and eigenvectors. As any covariance matrix is symmetric and real, we can use
+the GSL function [[gsl_eigen_symmv]] (and [[gsl_eigen_symmv_sort]] to sort the
+eigenvalues in decreasing magnitude):
+<<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>=
+cov_matrix = linalg.fblas.dgemm (1.0 / map_matrix.shape[1],
+				 map_matrix,
+				 map_matrix,
+				 trans_b = True)
+
+(evals, evects) = get_ordered_eig (cov_matrix)
+
+log.info ("Principal components: %s" % str (evals))
+@
+
+Finally, we compute the whitening and dewhitening matrices $(C - \Sigma)^{1/2}$
+and $(C - \Sigma)^{-1/2}$. The former is used to whiten the maps.
+<<Compute the whitening and dewhitening matrices>>=
+sqrt_evals = np.sqrt (np.abs (evals))
+whitening_matrix = np.dot (evects,
+			   np.dot (np.diag (1.0 / sqrt_evals),
+				   np.transpose (evects)))
+dewhitening_matrix = np.dot (evects,
+			     np.dot (np.diag (sqrt_evals),
+				     np.transpose (evects)))
+@
+
+\appendix
+
+\section{Index of symbols}
+
+Here we provide a list of the symbols used in the code. Each reference is of
+the form \texttt{nL}, where \texttt{n} is the number of the page and \texttt{L}
+a letter specifying the code chunk within that page starting from ``a''.
+Underlined references point to the definition of the symbol.
+
+\nowebindex
+
+\bibliography{tomica}
+\end{document}
