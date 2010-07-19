@@ -465,12 +465,12 @@ MAPS = read_healpix_files (split_file_names (FULL_MAP_NAMES))
 MAPS_WO_MONOPOLE = remove_monopole_from_maps (MAPS)
 (WHITENING_MATRIX, DEWHITENING_MATRIX) = whiten_maps (MAPS_WO_MONOPOLE)
 WHITENED_MAPS = np.dot (WHITENING_MATRIX, MAPS_WO_MONOPOLE)
-<<Run the FastICA algorithm>>
+SEPARATION_MATRIX = run_fastica (WHITENED_MAPS)
 <<Save and print the results>>
 <<Clean up>>
 
 log.info ('Execution ended')
-@ %def main
+@
 
 We have still to define the behavior of [[whiten_maps]] and [[run_fastica]].
 This is going to be done in sect.~\ref{sec:FastICAAlgorithms}.
@@ -493,32 +493,54 @@ used extensively by the FastICA algorithm.
 
 \subsection{The \FastICA{} algorithm}
 
-The FastICA algorithm is an iterative ICA algorithm which is analogous to a
-self-learning neural network \citep{2000BaccigalupiNNinForegroundSeparation},
-but it grants cubic convergence. The algorithm and the proof of convergence
-have been described by \citet{1997HyvarinenFastICA}. It requires the following
-steps to be performed \emph{for each component to be reconstructed} -- $k$ is
-the zero-based index of the iteration:
+FastICA is an iterative ICA algorithm for the separation of foregrounds and CMB
+signals from a set of sky maps at different frequencies. The algorithm is
+analogous to a self-learning neural network
+\citep{2000BaccigalupiNNinForegroundSeparation}, but it grants cubic
+convergence. The algorithm and the proof of convergence have been described by
+\citet{1997HyvarinenFastICA}. 
+
+The input of FastICA is a set of $m$ maps each with $n$ pixels. We shall
+consider this set of data as a $n \times m$ real matrix, which we denote with
+$X$. The covariance matrix of $X$ must be unity. Since this condition is not
+generally met for real-world maps, the \FastICA{} program implements a
+\emph{quasi-whitening} pre-processing on the maps which transforms $X$ into a
+matrix $X'$ which satisfies the condition. Such pre-processing is fully
+described in sect.~\ref{sec:whitening}.
+
+The output of FastICA is a $m \times m$ real invertible matrix $W$ such that $W
+X$ provides a $n \times m$ matrix applied separates the components. This
+means that each row $w_i$ of $W$ contains the ``weights'' for each map in $X$
+that produce the $i$-th component. Unfortunately FastICA is able to reconstruct
+the separated maps only up to a normalization constant. This means that e.g.\
+if $X$ already contains separated components, then $W$ will be a generic
+real diagonal matrix instead of the unity matrix.
+
+FastICA requires the following steps to be performed \emph{for each component to be
+reconstructed}:
 
 \begin{enumerate}
-\item Take a random initial versor $\vers{w}(0)$ with $m$ components, with $m$
-being the number of maps.
-\item If $g$ and $g'$ are respectively an invertible function from
+\item Let $k \leftarrow 0$.
+\item \label{item:fastICAIteration} Take a random versor $\vers{w}_k$ with $m$
+components.  \item If $g$ and $g'$ are respectively an invertible function from
 $\mathbb{R}^+$ to $\mathbb{R}$ and its derivative, let
 \begin{equation}
-\vers{w} (k) = E \bigl(\vect{x} g (\vers{w}^T (k - 1) \cdot \vect{x}) \bigr)
-- g' \bigl(\vers{w}^T (k - 1) \cdot \vect{x} \bigr),
+\vers{w}_{k+1} \leftarrow E \bigl(\vect{x} g (\vers{w}^T_k \cdot \vect{x})
+\bigr) - g' \bigl(\vers{w}^T_k \cdot \vect{x} \bigr),
 \end{equation}
-and normalize $\vers{w}$ by dividing it by its norm. The purpose of $g$ is to
-introduce a nonlinear step in the process to increase the convergence speed.
+where $E(\cdot)$ is the average operation. The purpose of $g$ is to introduce a
+nonlinear step in the process to increase the convergence speed.
 \citet{1997HyvarinenFastICA} use $g(u) = u^3$, while \citet{2002MainoFastICA}
 propose three different functions: $g(u) = u^3$, $g(u) = \tanh u$, $g(u) = \exp
 (-u^2)$.
-\item If $\left| \vers{w}^T (k) \cdot \vers{w} (k - 1) \right|$ is not sufficiently
-close to unity, let $k \leftarrow k + 1$ and repeat from point 1.
+
+\item Normalize $\vers{w}_{k+1}$ by dividing it by its norm. \item If $\left|
+\vers{w}^T_{k+1} \cdot \vers{w}_k \right|$ is not sufficiently close to unity,
+let $k \leftarrow k + 1$ and repeat from point~\ref{item:fastICAIteration}.
 \end{enumerate}
 
-The $\vers{w}^T$ obtained by this process is a row of the matrix $W$ which
+The last value of $\vers{w}^T$ obtained by this process provides an estimate of
+$\lim_{k\rightarrow\infty} \vers{w}_k$ and is a row of the matrix $W$ which
 performs the component separation.  To extract all the components from the $m$
 maps instead of just one (i.e.\ to estimate all the rows of matrix $W$), the
 algorithm must be modified in order for the $i$-th component to be searched in
@@ -526,11 +548,15 @@ a space orthogonal to the previous $i - 1$.  This is done by means of a
 modified Gram-Schmidt algorithm.
 
 <<Run the FastICA algorithm>>=
-# To be written
-@
+def run_fastica (input_maps):
+    'Run the FastICA algorithm on `input_maps' (a n x m matrix).'
+
+    return 0
+@ %def run_fastica
 
 
 \subsection{Whitening the Noise in the Maps}
+\label{sec:whitening}
 
 The so-called \emph{whitening step} of the \FastICA{} algorithm aims to improve
 the statistical properties of the signal needed by the algorithm itself by
@@ -544,8 +570,7 @@ been moved to the first $m$ vectors (with $m$ being some number smaller than
 $n$ so that $e_{m+1}$ is the first vector that can be considered ``almost''
 constant).  Thus, PCA is a way to reduce the dimensionality of a dataset by
 ``selecting'' preferred directions and throwing away those components that do
-not vary too much. In this context, we shall treat ``PCA'' as a synonim for
-``whitenization''.
+not vary too much.
 
 \begin{figure}[tbf]
     \centering
@@ -554,7 +579,8 @@ not vary too much. In this context, we shall treat ``PCA'' as a synonim for
     \caption{\label{fig:correlationDMR} Left: correlation between the (Healpix)
 sky maps produced by COBE DMR at 31\,GHz and 53\,GHz. The correlation
 coefficient $r$ is 0.72. Right: the same maps after having been whitened: now
-the correlation is nearly zero (because the covariance matrix is unity).}
+the correlation is nearly zero (the covariance matrix of the two maps is the $2
+\times 2$ identity matrix).}
 \end{figure}
 
 One can easily see that the sky shows some correlation at different
