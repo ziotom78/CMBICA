@@ -1,4 +1,4 @@
-% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+%b -*- mode: Noweb; noweb-code-mode: python-mode -*-
 
 % This is a Noweb file describing and providing the implementation of FastICA,
 % a program to separate foreground components from sky maps.
@@ -182,23 +182,23 @@ def parse_command_line ():
     Return a (OPTIONS, ARGS) pair.'''
 
     parser = OptionParser (usage = 'Usage: %prog [OPTIONS] PARAM_FILE',
-			   version = '%%prog %s' % VERSION,
-			   description = 'Apply the FastICA algorithm to'
-			   + 'a set of maps')
+                           version = '%%prog %s' % VERSION,
+                           description = 'Apply the FastICA algorithm to'
+                           + 'a set of maps')
 
     parser.add_option ('-l', '--log-level', dest = 'log_level',
-		       type = 'string', default = 'info',
-		       help = 'Specify the logging level '
-		       + '(choices: "debug", "info", "warning", '
-		       + '"error", "critical"). '
-		       + 'Default is "info".')
+                       type = 'string', default = 'info',
+                       help = 'Specify the logging level '
+                       + '(choices: "debug", "info", "warning", '
+                       + '"error", "critical"). '
+                       + 'Default is "info".')
     parser.add_option ('--log-file', dest = 'log_file', type = 'string',
-		       help = 'Name of the file where to write log '
-		       + 'messages (if not specified, stderr will be used.)',
-		       default = '')
+                       help = 'Name of the file where to write log '
+                       + 'messages (if not specified, stderr will be used.)',
+                       default = '')
 
     parser.add_option ('--test', dest = 'test_mode', action = 'store_true',
-		       help = 'Run a number of test cases and quit.')
+                       help = 'Run a number of test cases and quit.')
     parser.set_defaults (test_mode = False)
 
     return parser.parse_args ()
@@ -243,12 +243,12 @@ def init_logging (options):
     format = '[%(asctime)s %(levelname)s] %(message)s'
     if options.log_file:
         log.basicConfig (filename = options.log_file,
-			 filemode = 'w',
-			 format = format,
-			 level = log_levels[options.log_level])
+                         filemode = 'w',
+                         format = format,
+                         level = log_levels[options.log_level])
     else:
         log.basicConfig (format = format,
-			 level = log_levels[options.log_level])
+                         level = log_levels[options.log_level])
 @ %def init_logging
 
 
@@ -272,17 +272,17 @@ def read_param_file (args):
     'Read the parameter file. `args'' is the list of command-line arguments.'
 
     if len (args) != 1:
-	log.critical ('Error: you must provide the name of ' +
-		      'one parameter file on the command line.')
-	sys.exit (1)
+        log.critical ('Error: you must provide the name of ' +
+                      'one parameter file on the command line.')
+        sys.exit (1)
 
     dict = {
-	'map_file_names': 'string_list (min = 2)',
-	'source_path'   : 'string (default = ".")'
+        'map_file_names': 'string_list (min = 2)',
+        'source_path'   : 'string (default = ".")'
     }
     param_validator = Validator (dict)
     params = ConfigObj (args[0],
-			configspec = 'fastica.configspec')
+                        configspec = 'fastica.configspec')
     params.validate (param_validator)
 
     return params
@@ -318,13 +318,13 @@ def split_file_names (x):
 
     result = []
     for cur_file in x:
-	cur_split = cur_file.split (':')
-	if len (cur_split) == 1:
-	    cur_split = (cur_split[0], 0)
-	else:
-	    cur_split[1] = int (cur_split[1])
+        cur_split = cur_file.split (':')
+        if len (cur_split) == 1:
+            cur_split = (cur_split[0], 0)
+        else:
+            cur_split[1] = int (cur_split[1])
 
-	result.append (tuple (cur_split))
+        result.append (tuple (cur_split))
 
     return result
 @ %def split_file_names
@@ -357,10 +357,10 @@ def check_map_hdr_consistency (headers):
     program quits.'''
 
     if not all_equal ([x['NSIDE'] for x in headers]):
-	log.critical ('Maps do not have the same value for NSIDE')
+        log.critical ('Maps do not have the same value for NSIDE')
 
     if not all_equal ([x['ORDERING'] for x in headers]):
-	log.critical ('Maps do not have the same value for ORDERING')
+        log.critical ('Maps do not have the same value for ORDERING')
 @ %def check_map_hdr_consistency
 
 Function [[read_healpix_files]] reads a set of map files (specified through
@@ -382,16 +382,16 @@ def read_healpix_files (map_files):
     maps = []
     headers = []
     for (MAP_FILE_NAME, COLUMN) in map_files:
-	log.info ('Reading column %d of file %s' % (COLUMN, MAP_FILE_NAME))
-	cur_map = healpy.read_map (MAP_FILE_NAME, COLUMN,
-				   nest = None, h = True)
+        log.info ('Reading column %d of file %s' % (COLUMN, MAP_FILE_NAME))
+        cur_map = healpy.read_map (MAP_FILE_NAME, COLUMN,
+                                   nest = None, h = True)
 
-	maps.append (cur_map[0])
-	headers.append (dict (cur_map[1]))
+        maps.append (cur_map[0])
+        headers.append (dict (cur_map[1]))
 
     check_map_hdr_consistency (headers)
     log.debug ('The maps appear to be consistent, NPIXELS = %d'
-	       % maps[0].size)
+               % maps[0].size)
     return maps
 @ %def read_healpix_files
 
@@ -415,7 +415,7 @@ print DEWHITENING_MATRIX
 for i in xrange (WHITENED_MAPS.shape[0]):
     file_name = 'out%d.fits' % i
     log.info ('Writing file %s (%d pixels)'
-	      % (file_name, len (WHITENED_MAPS[i,:])))
+              % (file_name, len (WHITENED_MAPS[i,:])))
     healpy.write_map (file_name, WHITENED_MAPS[i,:])
 @
 
@@ -525,8 +525,9 @@ reconstructed}:
 components.  \item If $g$ and $g'$ are respectively an invertible function from
 $\mathbb{R}^+$ to $\mathbb{R}$ and its derivative, let
 \begin{equation}
-\vers{w}_{k+1} \leftarrow E \bigl(\vect{x} g (\vers{w}^T_k \cdot \vect{x})
-\bigr) - g' \bigl(\vers{w}^T_k \cdot \vect{x} \bigr),
+\label{eq:fastICAIteration}
+\vers{w}_{k+1} \leftarrow E \Bigl(\vect{x} g \bigl(\vers{w}^T_k \cdot \vect{x}\bigr)
+\Bigr) - \vect{x} \cdot E \Bigl( g' \bigl(\vers{w}^T_k \bigr) \Bigr),
 \end{equation}
 where $E(\cdot)$ is the average operation. The purpose of $g$ is to introduce a
 nonlinear step in the process to increase the convergence speed.
@@ -544,15 +545,156 @@ $\lim_{k\rightarrow\infty} \vers{w}_k$ and is a row of the matrix $W$ which
 performs the component separation.  To extract all the components from the $m$
 maps instead of just one (i.e.\ to estimate all the rows of matrix $W$), the
 algorithm must be modified in order for the $i$-th component to be searched in
-a space orthogonal to the previous $i - 1$.  This is done by means of a
-modified Gram-Schmidt algorithm.
+a space orthogonal to the previous\footnote{Not doing so would allow for the
+case where at the $i$-th iteration the starting vector $w$ (randomly chosen)
+would make the algorithm moving towards a component we already found!} $i - 1$.
 
+Since the algorithm requires versors (i.e.\ versors with unity norm), we start
+defining a function which divides a vector by its norm:
+
+<<Function definitions>>=
+def normalize_vector (v):
+    'Return "v" divided by its norm.'
+
+    norm = np.sqrt (np.dot (v, v))
+    if norm > 0.0:
+        return v / norm
+    else:
+        return 0.0   # Leave null vectors untouched
+@ %def normalize_vector
+
+The overall shape of [[run_fastica]]\ is provided here:
 <<Run the FastICA algorithm>>=
-def run_fastica (input_maps):
-    'Run the FastICA algorithm on `input_maps' (a n x m matrix).'
+def run_fastica (input_maps, g,
+                 max_iterations = 1000,
+                 max_num_of_failures = 3,
+                 threshold = 1.0e-6):
+    '''Run the FastICA algorithm on `input_maps' (a n x m matrix), using g
+    as the non-linear function (g(u) must return a pair containing the
+    value of the function and of its first derivative in u).'''
+
+    <<Initialize the variables used by [[run_fastica]]>>
+    for cur_signal in xrange (num_of_components):
+        converged = False
+        
+        <<Initialize versor [[w]]>>
+        for cur_iteration in xrange (max_iterations):
+            <<Take off the component of [[w]] parallel to the other components>>
+            <<Update [[w]]>>
+            <<Check for convergence>>
+
+        if not converged:
+            <<Warn for a component not having converged>>
 
     return 0
 @ %def run_fastica
+
+Two important variables, [[num_of_pixels]]\ and [[num_of_components]], are
+initialized by using the shape of the matrix [[input_maps]]:
+<<Initialize the variables used by [[run_fastica]]>>=
+num_of_pixels     = input_maps.shape[0]
+num_of_components = input_maps.shape[1]
+@
+
+The mixing matrix\footnote{We stress again that such matrix must be applied to
+the \emph{whitened maps}.} $B$ is of order $m \times m$ and is zero when the
+main loop starts. It will be updated once each new component is separated:
+<<Initialize the variables used by [[run_fastica]]>>=
+B = np.zeros ((num_of_components, num_of_components))
+@
+
+The code requires to start from some random versor $w$. We choose a vector
+where each component is a uniformly distributed number in $[-0.5, 0.5]$:
+<<Initialize versor [[w]]>>=
+w = normalize_vector (np.random.rand (num_of_components) - 0.5)
+@ %def w
+
+We immediately take out the component of $w$ which is along any of the previous
+components we have detected so far, in order to make the algorithm looking for
+a truly \emph{new} component:
+<<Take off the component of [[w]] parallel to the other components>>=
+w = w - np.dot (B, np.doc (np.transpose (B), w))
+@ The formula we are using here is taken from
+\citet[sect.~3.1.2]{1997HyvarinenFastICA}:
+\[
+w \leftarrow w - B \cdot \bigl( B^T w \bigr),
+\]
+where in general $B$ has the following shape after the $j$-th iteration:
+\begin{equation}
+B = 
+\begin{pmatrix}
+w^1_1 & w^1_2 & w^1_3 & \dots & w^1_n \\
+w^2_1 & w^2_2 & w^2_3 & \dots & w^2_n \\
+\hdotsfor[2]{5} \\
+w^j_1 & w^j_2 & w^j_3 & \dots & w^j_n \\
+0     & 0     & 0     & \dots & 0     \\
+\hdotsfor[2]{5} \\
+0     & 0     & 0     & \dots & 0     \\
+\end{pmatrix},
+\end{equation}
+where each $\vers{w}^k$ is the $k$-th weight versor found so far.
+
+We now apply eq.~\eqref{eq:fastICAIteration} to [[w]]:
+<<Update [[w]]>>=
+wold = w  # Save the current value of w for convergence check later
+g_value, gder_value = g (np.dot (np.transpose (input_maps), w))
+w = (np.dot (input_maps, g_value) - np.sum (gder_value) * w) / num_of_pixels
+@ %def wold
+
+The convergence check compares the value of [[w]] with [[wold]]:
+<<Check for convergence>>=
+if np.abs (np.dot (np.transpose (wold), w) - 1) < threshold:
+    converged = True 
+    B[:,cur_signal] = w
+    break
+@
+
+
+If a component failed to converge, we must warn the user. Such situation might
+happen without really invalidating the final result --- however, if \emph{too
+many} components fail to converge (the exact number is specified by the
+parameter [[max_num_of_failures]]) then there is the possibility that something
+in the input signal is wrong. In such case we will raise a severe error and
+halt the execution:
+<<Warn for a component not having converged>>=
+log.warning ('Component #%d not converged after %d iterations' %
+             (cur_signal, max_iterations))
+failed_convergences = failed_convergences + 1
+if failed_convergences > max_num_of_failures:
+    log.error ('Too many components did not converge -- aborting.')
+    sys.exit (1)
+@
+
+The [[failed_convergences]]\ variable contains the number of
+components for which FastICA did not converge fast enough:
+<<Initialize the variables used by [[run_fastica]]>>=
+failed_convergences = 0
+@
+
+
+\subsubsection{Non-linear functions}
+
+In this section we define a number of implementations for the $g$ non-linear
+function used by the FastICA algorithm (see eq.~\ref{eq:fastICAIteration}).
+Each function accepts an array of non-negative reals $\vect{u}$ and return a
+pair containing the value of $g (\vect{u})$ and $g' (\vect{u})$.
+
+<<Function definitions>>=
+def fastICApow3 (u):
+    square = u**2  # Reuse this value for g(u) and g'(u)
+    return (u * square, 3.0 * square)
+
+def fastICApow5 (u):
+    fourthPower = u**4  # Reuse this value for g(u) and g'(u)
+    return (u * fourthPower, 5.0 * fourthPower)
+
+def fastICAtanh (u):
+    return (np.tanh (u), np.sinh(u)**2)
+
+def fastICAgauss (u):
+    exponential = np.exp (-u**2)  # Reuse this value for g(u) and g'(u)
+    return (exponential, -2.0 * u * exponential)
+@
 
 
 \subsection{Whitening the Noise in the Maps}
@@ -623,7 +765,7 @@ def remove_monopole_from_maps (maps):
     'Remove the monopole from every map and return a numpy array.'
     map_matrix = np.array (maps)
     for idx in xrange (len (maps)):
-	map_matrix[idx,:] = maps[idx] - np.mean (maps[idx])
+        map_matrix[idx,:] = maps[idx] - np.mean (maps[idx])
 
     return map_matrix
 @ %def remove_monopole_from_maps
@@ -674,14 +816,12 @@ pixels.
 Estimating the covariance matrix $C$ is a simple matter of multiplying $X$ for
 $X^t$ and scaling by the number of maps. We can use the BLAS function [[dgemm]]
 to do everything in one operation. Having $C$ we can look for its eigenvalues
-and eigenvectors. As any covariance matrix is symmetric and real, we can use
-the GSL function [[gsl_eigen_symmv]] (and [[gsl_eigen_symmv_sort]] to sort the
-eigenvalues in decreasing magnitude):
+and eigenvectors:
 <<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>=
 cov_matrix = linalg.fblas.dgemm (1.0 / map_matrix.shape[1],
-				 map_matrix,
-				 map_matrix,
-				 trans_b = True)
+                                 map_matrix,
+                                 map_matrix,
+                                 trans_b = True)
 
 (evals, evects) = get_ordered_eig (cov_matrix)
 
@@ -693,11 +833,11 @@ and $(C - \Sigma)^{-1/2}$. The former is used to whiten the maps.
 <<Compute the whitening and dewhitening matrices>>=
 sqrt_evals = np.sqrt (np.abs (evals))
 whitening_matrix = np.dot (evects,
-			   np.dot (np.diag (1.0 / sqrt_evals),
-				   np.transpose (evects)))
+                           np.dot (np.diag (1.0 / sqrt_evals),
+                                   np.transpose (evects)))
 dewhitening_matrix = np.dot (evects,
-			     np.dot (np.diag (sqrt_evals),
-				     np.transpose (evects)))
+                             np.dot (np.diag (sqrt_evals),
+                                     np.transpose (evects)))
 @
 
 \appendix
