@@ -609,11 +609,17 @@ where each component is a uniformly distributed number in $[-0.5, 0.5]$:
 w = normalize_vector (np.random.rand (num_of_components) - 0.5)
 @ %def w
 
-We immediately take out the component of $w$ which is along any of the previous
-components we have detected so far, in order to make the algorithm looking for
-a truly \emph{new} component:
+At each iteration we take out the component of $\vers{w}$ which is along any of
+the previous components we have detected so far, in order to make the algorithm
+looking for a truly \emph{new} component. Since performing such operation puts
+into the estimate of $\vers{w}$ the estimation error of $B$, we perform such
+projection only during the first iterations of the algorithm\footnote{In other
+words, we are allowing some time for $\vers{w}$ to ``fall into the basin of
+attraction of one of the fixed points'', as \citet{1997HyvarinenFastICA}
+says.}:
 <<Take off the component of [[w]] parallel to the other components>>=
-w = w - np.dot (B, np.doc (np.transpose (B), w))
+if cur_iteration < 4:
+    w = w - np.dot (B, np.doc (np.transpose (B), w))
 @ The formula we are using here is taken from
 \citet[sect.~3.1.2]{1997HyvarinenFastICA}:
 \[
@@ -641,11 +647,15 @@ g_value, gder_value = g (np.dot (np.transpose (input_maps), w))
 w = (np.dot (input_maps, g_value) - np.sum (gder_value) * w) / num_of_pixels
 @ %def wold
 
-The convergence check compares the value of [[w]] with [[wold]]:
+The convergence check compares the value of [[w]] with [[wold]]: if they are
+sufficiently close, then the $B$ matrix is updated and the code quits the inner
+cycle:
 <<Check for convergence>>=
-if np.abs (np.dot (np.transpose (wold), w) - 1) < threshold:
+if np.abs (np.dot (np.transpose (wold), w) - 1.0) < threshold:
     converged = True 
     B[:,cur_signal] = w
+    log.debug ('Component #%d converged after %d iterations' %
+	       (cur_signal, cur_iteration + 1))
     break
 @
 
@@ -669,7 +679,7 @@ The [[failed_convergences]]\ variable contains the number of
 components for which FastICA did not converge fast enough:
 <<Initialize the variables used by [[run_fastica]]>>=
 failed_convergences = 0
-@
+@ %def failed_convergences
 
 
 \subsubsection{Non-linear functions}
