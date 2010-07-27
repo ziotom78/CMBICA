@@ -589,8 +589,8 @@ def run_fastica (input_maps, g,
     return 0
 @ %def run_fastica
 
-Two important variables, [[num_of_pixels]]\ and [[num_of_components]], are
-initialized by using the shape of the matrix [[input_maps]]:
+Two important variables, [[num_of_pixels]]\ ($n$) and [[num_of_components]]\
+($m$), are initialized by using the shape of the matrix [[input_maps]]:
 <<Initialize the variables used by [[run_fastica]]>>=
 num_of_pixels     = input_maps.shape[0]
 num_of_components = input_maps.shape[1]
@@ -613,10 +613,9 @@ At each iteration we take out the component of $\vers{w}$ which is along any of
 the previous components we have detected so far, in order to make the algorithm
 looking for a truly \emph{new} component. Since performing such operation puts
 into the estimate of $\vers{w}$ the estimation error of $B$, we perform such
-projection only during the first iterations of the algorithm\footnote{In other
-words, we are allowing some time for $\vers{w}$ to ``fall into the basin of
-attraction of one of the fixed points'', as \citet{1997HyvarinenFastICA}
-says.}:
+projection only during the first iterations of the algorithm\footnote{Using the
+words of \citet{1997HyvarinenFastICA}, we are allowing some time for $\vers{w}$
+to ``fall into the basin of attraction of one of the fixed points''.}:
 <<Take off the component of [[w]] parallel to the other components>>=
 if cur_iteration < 4:
     w = w - np.dot (B, np.doc (np.transpose (B), w))
@@ -625,20 +624,21 @@ if cur_iteration < 4:
 \[
 w \leftarrow w - B \cdot \bigl( B^T w \bigr),
 \]
-where in general $B$ has the following shape after the $j$-th iteration:
+where $B$ is the mixing matrix of the whitened maps. Note that in general $B$
+has the following shape after the $j$-th iteration:
 \begin{equation}
 B = 
 \begin{pmatrix}
-w^1_1 & w^1_2 & w^1_3 & \dots & w^1_n \\
-w^2_1 & w^2_2 & w^2_3 & \dots & w^2_n \\
-\hdotsfor[2]{5} \\
-w^j_1 & w^j_2 & w^j_3 & \dots & w^j_n \\
-0     & 0     & 0     & \dots & 0     \\
-\hdotsfor[2]{5} \\
-0     & 0     & 0     & \dots & 0     \\
+w^1_1 & w^1_2 & \dots & w^1_n \\
+w^2_1 & w^2_2 & \dots & w^2_n \\
+\hdotsfor[2]{4} \\
+w^j_1 & w^j_2 & \dots & w^j_n \\
+0     & 0     & \dots & 0     \\
+\hdotsfor[2]{4} \\
+0     & 0     & \dots & 0     \\
 \end{pmatrix},
 \end{equation}
-where each $\vers{w}^k$ is the $k$-th weight versor found so far.
+where each $\vers{w}^k$ is the weight versor for the $k$-th component.
 
 We now apply eq.~\eqref{eq:fastICAIteration} to [[w]]:
 <<Update [[w]]>>=
