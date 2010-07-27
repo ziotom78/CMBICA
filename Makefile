@@ -1,3 +1,8 @@
+NOWEAVE = noweave
+NOTANGLE = notangle
+CPIF = cpif
+TEXI2PDF = texi2pdf
+
 SOURCE_NW = tomica.nw
 BIB_FILE = tomica.bib
 
@@ -6,10 +11,10 @@ BIB_FILE = tomica.bib
 all: tomica.pdf tomica.py fastica.configspec
 
 tomica.pdf: tomica.tex
-	texi2pdf --batch --pdf $<
+	$(TEXI2PDF) --batch --pdf $<
 
 tomica.tex: $(SOURCE_NW) $(BIB_FILE)
-	noweave -n -delay -index $< | cpif $@
+	$(NOWEAVE) -n -delay -index $< | $(CPIF) $@
 
 tomica.py: $(SOURCE_NW)
-	notangle $< | cpif $@
+	$(NOTANGLE) $< | $(CPIF) $@
