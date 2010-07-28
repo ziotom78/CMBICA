@@ -46,7 +46,7 @@
 \fancyhf{}
 \fancyhead[L,RO]{\bfseries\thepage}
 \fancyhead[LO]{\bfseries\rightmark}
-\fancyhead[RE]{\bfseries\leftmark}
+\fancyhead[RE]{\bfseries\FastICA}
 
 \fancypagestyle{plain}{%
   \fancyhf{}
@@ -121,8 +121,9 @@ based on Healpix \citep{2005GorskiHEALPix}.
 eigenvalues and eigenvectors).
 \end{enumerate}
 This implementation of \FastICA{} has been created using the ``Literate
-Programming'' approach to development. The [[noweb]] tool is required to create
-this documentation as well as the Python program to be run.
+Programming'' approach to development \citep{KnuthLiterateProgramming}. The
+[[noweb]]\ tool is required to create this documentation as well as the Python
+program to be run.
 
 In this document we illustrate the implementation of \FastICA{}. The outline of
 the document is the following: \S~\ref{sec:Main} discusses the general behavior
@@ -219,12 +220,12 @@ or to a file. We include the module in the main program using the
 import logging as log
 @
 
-Function [[init_logging]] is used to initialize the logging system using the
+Function [[init_logging]]\ is used to initialize the logging system using the
 preferences specified within the command-line. There are two flags used to
 configure the system: \texttt{--log-level} specifies the types of messages to
 be logged, and \texttt{--log-file} specifies the file name where to write log
 messages (if not specified, messages are printed to the standard error stream).
-The two parameters are passed through the [[options]] dictionary (which is
+The two parameters are passed through the [[options]]\ dictionary (which is
 built by the [[parse_command_line]] function):
 
 <<Function definitions>>=
@@ -264,8 +265,9 @@ from configobj import ConfigObj
 from validate import Validator
 @
 
-In function [[read_param_file]] we build a [[Validator]] to check the syntax of
-the parameter file and set the default values:
+In function [[read_param_file]]\ we build a [[Validator]]\ to check the syntax
+of the parameter file and set the default values. The meaning of each parameter
+(e.g. [[mask_file]]) will be explained in the next sections.
 
 <<Function definitions>>=
 def read_param_file (args):
@@ -278,7 +280,9 @@ def read_param_file (args):
 
     dict = {
         'map_file_names': 'string_list (min = 2)',
-        'source_path'   : 'string (default = ".")'
+        'source_path'   : 'string (default = ".")',
+	'mask_file'     : 'string (default = "")',
+	'mask_latitude' : 'float (default = -1.0)'
     }
     param_validator = Validator (dict)
     params = ConfigObj (args[0],
@@ -286,9 +290,12 @@ def read_param_file (args):
     params.validate (param_validator)
 
     return params
-@ %def read_param_file
+@ %def read_param_file map_file_names source_path mask_file mask_latitude
 
-The file names to be specified for [[map_file_names]] must be separated by a
+
+\subsection{Reading the input files}
+
+The file names to be specified for [[map_file_names]]\ must be separated by a
 comma. Each name can be specified in the following ways:
 \begin{enumerate}
 \item The plain file name, optionally prepended by an absolute or relative path:
@@ -303,7 +310,7 @@ number specifying the column number in the FITS file to be used:
 \end{verbatim}
 \end{enumerate}
 
-The [[normalize_map_file_names]] function takes as input a list of $N$ strings in one of
+The [[normalize_map_file_names]]\ function takes as input a list of $N$ strings in one of
 the forms listed above and returns a list of $N$ tuples each composed by the
 undecorated file name and the integer index (0 is the default):
 <<Function definitions>>=
@@ -329,10 +336,10 @@ def split_file_names (x):
     return result
 @ %def split_file_names
 
-When e read a set of maps specified by the user, we need to assess whether they
-are compatible with the requirements of \FastICA, i.e.\ they must have the same
-pixel ordering scheme and the same resolution. We start by defining a function
-which checks if the elements of a list are all equal:
+When the program reads a set of maps specified by the user, it must assess
+whether they are compatible with the requirements of \FastICA, i.e.\ they must
+have the same pixel ordering scheme and the same resolution. We start by
+defining a function which checks if the elements of a list are all equal:
 <<Function definitions>>=
 def all_equal (x):
     '''Return True if all the elements of `x' (a list or a tuple) are equal.
@@ -348,7 +355,7 @@ def all_equal (x):
 The [[all_equal]] function is the core of the following
 [[check_map_hdr_consistency]], which takes a set of FITS headers
 (the [[headers]] argument must be a list or tuple of dictionaries) and compares
-the values of [[NSIDE]] and [[ORDERING]]. The function quits the program if
+the values of [[NSIDE]]\ and [[ORDERING]]. The function quits the program if
 such field do not have the same value among the headers:
 <<Function definitions>>=
 def check_map_hdr_consistency (headers):
@@ -363,10 +370,10 @@ def check_map_hdr_consistency (headers):
         log.critical ('Maps do not have the same value for ORDERING')
 @ %def check_map_hdr_consistency
 
-Function [[read_healpix_files]] reads a set of map files (specified through
-[[(file,idx)]] pairs so that we can use [[split_file_names]] here) and checks
+Function [[read_healpix_files]]\ reads a set of map files (specified through
+[[(file,idx)]]\ pairs so that we can use [[split_file_names]]\ here) and checks
 for their consistency by comparing ther headers.  This is accomplished by using
-the [[h = True]] flag in calling [[healpy.read_map]], so that the result is a
+the [[h = True]]\ flag in calling [[healpy.read_map]], so that the result is a
 pair containing the array of pixels and the header (note that we convert the
 header into a dictionary: this is mandatory for using
 [[check_map_hdr_consistency]]).
@@ -472,7 +479,7 @@ SEPARATION_MATRIX = run_fastica (WHITENED_MAPS)
 log.info ('Execution ended')
 @
 
-We have still to define the behavior of [[whiten_maps]] and [[run_fastica]].
+We have still to define the behavior of [[whiten_maps]]\ and [[run_fastica]].
 This is going to be done in sect.~\ref{sec:FastICAAlgorithms}.
 
 
@@ -564,7 +571,7 @@ def normalize_vector (v):
 @ %def normalize_vector
 
 The overall shape of [[run_fastica]]\ is provided here:
-<<Run the FastICA algorithm>>=
+<<Function definitions>>=
 def run_fastica (input_maps, g,
                  max_iterations = 1000,
                  max_num_of_failures = 3,
@@ -579,7 +586,7 @@ def run_fastica (input_maps, g,
         
         <<Initialize versor [[w]]>>
         for cur_iteration in xrange (max_iterations):
-            <<Take off the component of [[w]] parallel to the other components>>
+            <<Take off the component of [[w]]\ parallel to the other components>>
             <<Update [[w]]>>
             <<Check for convergence>>
 
@@ -616,7 +623,7 @@ into the estimate of $\vers{w}$ the estimation error of $B$, we perform such
 projection only during the first iterations of the algorithm\footnote{Using the
 words of \citet{1997HyvarinenFastICA}, we are allowing some time for $\vers{w}$
 to ``fall into the basin of attraction of one of the fixed points''.}:
-<<Take off the component of [[w]] parallel to the other components>>=
+<<Take off the component of [[w]]\ parallel to the other components>>=
 if cur_iteration < 4:
     w = w - np.dot (B, np.doc (np.transpose (B), w))
 @ The formula we are using here is taken from
@@ -647,7 +654,7 @@ g_value, gder_value = g (np.dot (np.transpose (input_maps), w))
 w = (np.dot (input_maps, g_value) - np.sum (gder_value) * w) / num_of_pixels
 @ %def wold
 
-The convergence check compares the value of [[w]] with [[wold]]: if they are
+The convergence check compares the value of [[w]]\ with [[wold]]: if they are
 sufficiently close, then the $B$ matrix is updated and the code quits the inner
 cycle:
 <<Check for convergence>>=
@@ -799,16 +806,16 @@ def get_ordered_eig (x):
     perm = np.argsort (-np.abs (evals))
     return (evals[perm], evects[:,perm])
 @ %def get_ordered_eig
-Since the [[linalg]] module is part of the [[scipy]] package, we must import it
+Since the [[linalg]]\ module is part of the [[scipy]]\ package, we must import it
 at the beginning of the main program:
 <<Import statements>>=
 from scipy import linalg
 @
 
 We have now all the necessary pieces to write [[whiten_maps]]. Note that we are
-not going to call [[remove_monopole_from_maps]] within [[whiten_maps]], since
+not going to call [[remove_monopole_from_maps]]\ within [[whiten_maps]], since
 we are going to use the matrix of zero-mean maps also outside [[whiten_maps]].
-Therefore, we assume here that [[map_matrix]] is the result of a previous call
+Therefore, we assume here that [[map_matrix]]\ is the result of a previous call
 to [[remove_monopole_from_maps]]:
 <<Function definitions>>=
 def whiten_maps (map_matrix):
@@ -819,7 +826,7 @@ def whiten_maps (map_matrix):
     <<Compute the whitening and dewhitening matrices>>
     return (whitening_matrix, dewhitening_matrix)
 @ %def whiten_maps
-\noindent where [[map_matrix]] is the $X$ in eq.~\eqref{eq:mapPCA}, a $n\times
+\noindent where [[map_matrix]]\ is the $X$ in eq.~\eqref{eq:mapPCA}, a $n\times
 m$ matrix containing the $n$ maps each with $m = 12\times \mathrm{NSIDE}^2$
 pixels.
 
@@ -849,6 +856,93 @@ dewhitening_matrix = np.dot (evects,
                              np.dot (np.diag (sqrt_evals),
                                      np.transpose (evects)))
 @
+
+\section{Masking}
+
+In this section we implement the code which applies masks to the maps. The main
+motivation behind masking is that some parts of the sky (e.g.\ the galactic
+plane) are more challenging for ICA methods because the assumptions regarding
+statistical independence do not hold. Therefore, to improve the ability of
+\FastICA{} to separate the components it is often necessary to tell the program
+to skip some pixels in the processing. This is the purpose of a \emph{mask}.
+
+A mask is a map of the same resolution (i.e.\ the \texttt{NSIDE} value in a
+Healpix map) which contains only boolean values\footnote{Or integer values,
+provided that a nonzero value means ``true'' and a zero value means
+``false''.}. If a pixel is not ``true'', then the corresponding pixel in the
+input maps is excluded by the processing.
+
+A mask can be specified using two methods:
+\begin{enumerate}
+\item By providing the program with a boolean map.
+\item By specifying a latitude angle $b$ (in galactical coordinates) so that
+every pixel pointing at $\vec\gamma$ whose latitude $b(\vec{\gamma})$ is such
+that $\left|b(\vec{\gamma})\right| < b$ will be masked. This is called
+\emph{galactic masking}, as it is a very simple way to mask the Galaxy.
+\end{enumerate}
+
+\begin{figure}[tbf]
+    \centering
+    \includegraphics{mask-sketch.pdf}
+    \caption{\label{fig:masking} How masking works in \FastICA{}. The above
+figure shows a set of two maps $a$ and $b$, and a boolean mask (\texttt{true}
+values are represented as gray squares, whereas \texttt{false} values are empty
+squares). The bottom part of the figure shows the result, which is used as
+input for the subsequent processing steps.}
+\end{figure}
+
+From the point of view of the FastICA algorithm, ``masking'' the data means
+simply to remove certain pixels from the input passed to [[run_fastica]]. See
+fig.~\ref{fig:masking}. This is done by the [[apply_mask]] function:
+<<Function definitions>>=
+def apply_mask (maps, mask):
+    '''Apply *mask* (a boolean array) to *maps* (a NxM matrix).
+
+    >>> apply_mask ([[1, 2, 3], [4, 5, 6]], [True, False, False])
+    array([[2, 3],
+           [5, 6]])
+    '''
+
+    maps = np.array (maps)
+    mask = np.array (mask)
+
+    inverted_mask = np.negative (mask)
+    unmasked_pixels = len (np.nonzero (inverted_mask)[0])
+    num_of_maps = maps.shape[0]
+
+    result = np.empty ((num_of_maps, unmasked_pixels), dtype = maps.dtype)
+    for cur_column in xrange (num_of_maps):
+	result[cur_column,:] = maps[cur_column,inverted_mask]
+	
+    return result
+@ %def apply_mask
+
+Of course, we need a specular function which puts back things in place at the
+end:
+<<Function definitions>>=
+def unapply_mask (maps, mask, fill_value = -1e-6):
+    '''Do the inverse transformation of apply_mask.
+
+    >>> unapply_mask ([[2, 3], [5, 6]], [True, False, False], 9)
+    array([[9, 2, 3],
+           [9, 5, 6]])
+    '''
+
+    maps = np.array (maps)
+    mask = np.array (mask)
+
+    num_of_pixels = mask.size
+    num_of_maps   = maps.shape[0]
+    inverted_mask = np.negative (mask)
+
+    result = np.empty ((num_of_maps, num_of_pixels), dtype = maps.dtype)
+    for cur_column in xrange (num_of_maps):
+	result[cur_column,mask] = fill_value
+	result[cur_column,inverted_mask] = maps[cur_column,:]
+
+    return result
+@ %def unapply_mask
+
 
 \appendix
 

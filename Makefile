@@ -2,6 +2,7 @@ NOWEAVE = noweave
 NOTANGLE = notangle
 CPIF = cpif
 TEXI2PDF = texi2pdf
+IMAGES = masked-sketch.pdf
 
 SOURCE_NW = tomica.nw
 BIB_FILE = tomica.bib
@@ -18,3 +19,6 @@ tomica.tex: $(SOURCE_NW) $(BIB_FILE)
 
 tomica.py: $(SOURCE_NW)
 	$(NOTANGLE) $< | $(CPIF) $@
+
+%.pdf: %.asy
+	asy -f pdf -o $@ $<
