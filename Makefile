@@ -2,7 +2,7 @@ NOWEAVE = noweave
 NOTANGLE = notangle
 CPIF = cpif
 TEXI2PDF = texi2pdf
-IMAGES = masked-sketch.pdf
+IMAGES = mask-sketch.pdf
 
 SOURCE_NW = tomica.nw
 BIB_FILE = tomica.bib
@@ -11,7 +11,7 @@ BIB_FILE = tomica.bib
 
 all: tomica.pdf tomica.py fastica.configspec
 
-tomica.pdf: tomica.tex
+tomica.pdf: tomica.tex $(IMAGES)
 	$(TEXI2PDF) --batch --pdf $<
 
 tomica.tex: $(SOURCE_NW) $(BIB_FILE)

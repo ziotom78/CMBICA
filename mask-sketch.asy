@@ -30,7 +30,7 @@ add (transf * grid (mask.length, 3));
 
 /////////////////////////////////////////////////////////////////
 
-transf = shift ((mask.length - unmasked_elements) * 0.5 * 6.5, -20.0) * scale (6.5);
+transf = shift ((mask.length - unmasked_elements) * 0.5 * 6.5, -38.0) * scale (6.5);
 
 label ("Masked map $a$", transf * (-0.2, 1.5), align = 1W);
 label ("Masked map $b$", transf * (-0.2, 0.5), align = 1W);
@@ -47,3 +47,8 @@ for (int i = 0; i < mask.length; ++i)
 }
 
 add (transf * grid (unmasked_elements, 2));
+
+/////////////////////////////////////////////////////////////////
+
+draw ("\texttt{apply\_mask}",   (20, -5.0) -- (20.0, -20.0), EndArrow);
+draw ("\texttt{unapply\_mask}", (50, -5.0) -- (50.0, -20.0), BeginArrow, align = LeftSide);

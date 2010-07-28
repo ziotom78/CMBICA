@@ -888,7 +888,9 @@ that $\left|b(\vec{\gamma})\right| < b$ will be masked. This is called
 figure shows a set of two maps $a$ and $b$, and a boolean mask (\texttt{true}
 values are represented as gray squares, whereas \texttt{false} values are empty
 squares). The bottom part of the figure shows the result, which is used as
-input for the subsequent processing steps.}
+input for the subsequent processing steps. Going from top to bottom is the
+purpose of the \texttt{apply\_mask} routine, while the vice-versa is
+implemented by \texttt{unapply\_mask}.}
 \end{figure}
 
 From the point of view of the FastICA algorithm, ``masking'' the data means
@@ -918,7 +920,8 @@ def apply_mask (maps, mask):
 @ %def apply_mask
 
 Of course, we need a specular function which puts back things in place at the
-end:
+end. This is the purpose of [[unapply_mask]]. It requires a [[fill_value]]
+parameter which is used to ``fill the blanks'' in the result.
 <<Function definitions>>=
 def unapply_mask (maps, mask, fill_value = -1e-6):
     '''Do the inverse transformation of apply_mask.
