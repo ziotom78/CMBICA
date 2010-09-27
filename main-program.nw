@@ -308,7 +308,7 @@ get a segmentation fault here signaling the bug.)
 
 Having put all the necessary functions in shape, we can now provide the main
 skeleton of the program:
-<<*>>=
+<<cmbica.py>>=
 #!/usr/bin/env python
 
 import sys

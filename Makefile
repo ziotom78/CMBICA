@@ -23,7 +23,7 @@ cmbica.tex: $(SOURCE_NW) $(BIB_FILE)
 	$(NOWEAVE) -n -delay -index $< | $(CPIF) $@
 
 cmbica.py: $(SOURCE_NW)
-	$(NOTANGLE) $< | $(CPIF) $@
+	$(NOTANGLE) -R$@ $? | $(CPIF) $@
 
 %.pdf: %.asy
 	asy -f pdf -o $@ $<
