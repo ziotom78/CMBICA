@@ -23,6 +23,7 @@
 \usepackage[round]{natbib}
 
 \hyphenation{fast-ica}
+\newcommand{\cmbica}{\textsc{CMBica}}
 
 % Command used to indicate a section
 \newcommand{\sectmark}{\S\ }
@@ -59,10 +60,10 @@
 \captionnamefont{\small\bfseries}
 \captiontitlefont{\small\itshape}
 
-\hypersetup{pdftitle={FastICA},
+\hypersetup{pdftitle={CMBICA},
 pdfauthor=Maurizio Tomasi,
-pdfsubject={Commented implementation of the FastICA program},
-pdfkeywords={CMB {data analysis} {component separation}},
+pdfsubject={Commented implementation of the CMBICA program},
+pdfkeywords={CMB {data analysis} {component separation} {FastICA} {independent component analysis}},
 pdfborder={0 0 0}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -81,7 +82,7 @@ pdfborder={0 0 0}}
 \maketitle
 
 \begin{abstract}
-This document describes the implementation of \FastICA{}, a program to separate
+This document describes the implementation of \cmbica{}, a program to separate
 the foregrounds components from the CMB in a set of full-sky or partial-sky
 maps.
 \end{abstract}
@@ -90,18 +91,17 @@ maps.
 
 \section{Introduction}
 
-\FastICA{} is a Python program which runs the ``FastICA'' algorithm\footnote{In
-this document we shall indicate the algorithm with FastICA (without capitals)
-and the program which implements it with \FastICA{}.}
-\citep{1997HyvarinenFastICA,2002MainoFastICA} on a number of sky maps at
-different frequencies, attempting to separate foreground components from the
-Cosmic Microwave Background (CMB). It exploits the fact that each foreground
+\cmbica{} is a Python program which runs the \FastICA{} algorithm
+\citep{1997HyvarinenFastICA} on a number of sky maps at different frequencies,
+attempting to separate foreground components from the Cosmic Microwave
+Background (CMB). It is a novel incarnation of the old FastICA program by
+\citet{2002MainoFastICA}, and it exploits the fact that each foreground
 component has a non-gaussian (i.e.\ white) profile distinct from everything
 else, and that the CMB is the only gaussian contribution to the sky
 temperature. This approach is used by a number of analysis tools similar to
-\FastICA{}, e.g.\ SMICA, AltICA and others.
+\cmbica{}, e.g.\ SMICA, AltICA and others.
 
-The source code of \FastICA{} uses a number of Python libraries:
+The source code of \cmbica{} uses a number of Python libraries:
 \begin{enumerate}
 \item Optparse, for interpreting command line switches (see
 par.~\ref{sec:commandLineParsing}).
@@ -120,32 +120,32 @@ based on Healpix \citep{2005GorskiHEALPix}.
 \item SciPy, a library of high-level numerical routines (mainly used to find
 eigenvalues and eigenvectors).
 \end{enumerate}
-This implementation of \FastICA{} has been created using the ``Literate
+This implementation of \cmbica{} has been created using the ``Literate
 Programming'' approach to development \citep{KnuthLiterateProgramming}. The
 [[noweb]]\ tool is required to create this documentation as well as the Python
 program to be run.
 
-In this document we illustrate the implementation of \FastICA{}. The outline of
+In this document we illustrate the implementation of \cmbica{}. The outline of
 the document is the following: \S~\ref{sec:Main} discusses the general behavior
 of the program (i.e.\ the implementation of [[main]]),
-\S~\ref{sec:FastICAAlgorithms} implements the mathematical formulae of the
-FastICA algorithm and the appendices contain ancillary classes and functions
+\S~\ref{sec:CMBICAAlgorithms} implements the mathematical formulae of the
+\FastICA{} algorithm and the appendices contain ancillary classes and functions
 used by the program.
 
 
 \section{The main program}
 \label{sec:Main}
 
-\FastICA{} is a single-run program. This means that every time the
+\cmbica{} is a single-run program. This means that every time the
 program is executed, it performs just \emph{one} analysis and then
 exits. Performing multiple analyses (i.e.\ in a Monte Carlo
 simulation) requires the user to run the program multiple times.
 
-Unlike the previos incarnation of \FastICA{} (version 1.0), the current
-implementation does not allow the user to interactively insert the input needed
-for the program (e.g.\ the path to the FITS files containing the maps), but
-instead it requires the user to provide a \emph{parameter file} containing all
-the information necessary to run the program in batch mode.
+Unlike the Fortran 90 implementation of \FastICA{} (by D.~Maino, C.~Burigana),
+the current implementation does not allow the user to interactively insert the
+input needed for the program (e.g.\ the path to the FITS files containing the
+maps), but instead it requires the user to provide a \emph{parameter file}
+containing all the information necessary to run the program in batch mode.
 
 The program can be run in two modes:
 \begin{enumerate}
@@ -153,7 +153,7 @@ The program can be run in two modes:
 processed by the program in a parameter file, together with all the relevant
 settings desired for the analysis (e.g.\ whether to use a mask or not).
 
-\item For debugging and development purposes, \FastICA{} can be run in
+\item For debugging and development purposes, \cmbica{} can be run in
 \emph{test mode}. Doing so will make the program execute a number of internal
 consistency checks that ensure the code behaves as expected and then quits. The
 average user is not likely to use this feature.
@@ -185,7 +185,7 @@ def parse_command_line ():
     parser = OptionParser (usage = 'Usage: %prog [OPTIONS] PARAM_FILE',
                            version = '%%prog %s' % VERSION,
                            description = 'Apply the FastICA algorithm to'
-                           + 'a set of maps')
+                           + 'a set of Healpix maps')
 
     parser.add_option ('-l', '--log-level', dest = 'log_level',
                        type = 'string', default = 'info',
@@ -212,7 +212,7 @@ activities. See sect.~\ref{sec:logging} for further details.
 \subsection{Initialization of the logging system}
 \label{sec:logging}
 
-\FastICA{} uses the \texttt{logging} Python library to write
+\cmbica{} uses the \texttt{logging} Python library to write
 information/warning/error messages. They can be sent either to standard error
 or to a file. We include the module in the main program using the
 [[log]] shorthand:
@@ -337,7 +337,7 @@ def split_file_names (x):
 @ %def split_file_names
 
 When the program reads a set of maps specified by the user, it must assess
-whether they are compatible with the requirements of \FastICA, i.e.\ they must
+whether they are compatible with the requirements of \cmbica, i.e.\ they must
 have the same pixel ordering scheme and the same resolution. We start by
 defining a function which checks if the elements of a list are all equal:
 <<Function definitions>>=
@@ -463,7 +463,7 @@ if OPTIONS.test_mode:
     sys.exit (0)
 
 init_logging (OPTIONS)
-log.info ('Execution started, FastICA %s', VERSION)
+log.info ('Execution started, CMBica %s', VERSION)
 
 PARAMS = read_param_file (ARGS)
 FULL_MAP_NAMES = [os.path.join (PARAMS['source_path'], x)
@@ -480,50 +480,50 @@ log.info ('Execution ended')
 @
 
 We have still to define the behavior of [[whiten_maps]]\ and [[run_fastica]].
-This is going to be done in sect.~\ref{sec:FastICAAlgorithms}.
+This is going to be done in sect.~\ref{sec:CMBICAAlgorithms}.
 
 
 \section{The Numerical Algorithms used in the Code}
-\label{sec:FastICAAlgorithms}
+\label{sec:CMBICAAlgorithms}
 
 In this section we discuss the implementation of the mathematical formulae
-needed by the FastICA algorithm. There are two algorithms that need to be
+needed by the \FastICA{} algorithm. There are two algorithms that need to be
 implemented:
 \begin{enumerate}
-\item The FastICA algorithm itself;
+\item The \FastICA{} algorithm itself;
 \item A method which improves the uncorrelatedness of the maps. Such process is
 called \emph{whitening} and is a step to be made \emph{before} applying the
-FastICA algorithm. The reason is that whitening transforms data matrix $X$ into
+\FastICA{} algorithm. The reason is that whitening transforms data matrix $X$ into
 a new matrix $X'$ whose correlation matrix is unity --- this property is then
-used extensively by the FastICA algorithm.
+used extensively by the \FastICA{} algorithm.
 \end{enumerate}
 
 \subsection{The \FastICA{} algorithm}
 
-FastICA is an iterative ICA algorithm for the separation of foregrounds and CMB
+\FastICA{} is an iterative ICA algorithm for the separation of foregrounds and CMB
 signals from a set of sky maps at different frequencies. The algorithm is
 analogous to a self-learning neural network
 \citep{2000BaccigalupiNNinForegroundSeparation}, but it grants cubic
 convergence. The algorithm and the proof of convergence have been described by
 \citet{1997HyvarinenFastICA}. 
 
-The input of FastICA is a set of $m$ maps each with $n$ pixels. We shall
+The input of \FastICA{} is a set of $m$ maps each with $n$ pixels. We shall
 consider this set of data as a $n \times m$ real matrix, which we denote with
 $X$. The covariance matrix of $X$ must be unity. Since this condition is not
-generally met for real-world maps, the \FastICA{} program implements a
+generally met for real-world maps, the \cmbica{} program implements a
 \emph{quasi-whitening} pre-processing on the maps which transforms $X$ into a
 matrix $X'$ which satisfies the condition. Such pre-processing is fully
 described in sect.~\ref{sec:whitening}.
 
-The output of FastICA is a $m \times m$ real invertible matrix $W$ such that $W
+The output of \cmbica{} is a $m \times m$ real invertible matrix $W$ such that $W
 X$ provides a $n \times m$ matrix applied separates the components. This
 means that each row $w_i$ of $W$ contains the ``weights'' for each map in $X$
-that produce the $i$-th component. Unfortunately FastICA is able to reconstruct
-the separated maps only up to a normalization constant. This means that e.g.\
-if $X$ already contains separated components, then $W$ will be a generic
-real diagonal matrix instead of the unity matrix.
+that produce the $i$-th component. Unfortunately \FastICA{} is able to
+reconstruct the separated maps only up to a normalization constant. This means
+that e.g.\ if $X$ already contains separated components, then $W$ will be a
+generic real diagonal matrix instead of the unity matrix.
 
-FastICA requires the following steps to be performed \emph{for each component to be
+\FastICA{} requires the following steps to be performed \emph{for each component to be
 reconstructed}:
 
 \begin{enumerate}
@@ -682,8 +682,8 @@ if failed_convergences > max_num_of_failures:
     sys.exit (1)
 @
 
-The [[failed_convergences]]\ variable contains the number of
-components for which FastICA did not converge fast enough:
+The [[failed_convergences]]\ variable contains the number of components for
+which \FastICA{} did not converge fast enough:
 <<Initialize the variables used by [[run_fastica]]>>=
 failed_convergences = 0
 @ %def failed_convergences
@@ -692,7 +692,7 @@ failed_convergences = 0
 \subsubsection{Non-linear functions}
 
 In this section we define a number of implementations for the $g$ non-linear
-function used by the FastICA algorithm (see eq.~\ref{eq:fastICAIteration}).
+function used by the \FastICA{} algorithm (see eq.~\ref{eq:fastICAIteration}).
 Each function accepts an array of non-negative reals $\vect{u}$ and return a
 pair containing the value of $g (\vect{u})$ and $g' (\vect{u})$.
 
@@ -747,11 +747,11 @@ frequencies: take for instance fig.~\ref{fig:correlationDMR}, which visually
 shows the correlation between the 31\,GHz and the 53\,GHz channels of COBE-DMR.
 This means that the $n \times m$ matrix $X$ containing data from the $m$ maps
 has a covariance matrix which has nonzero off-diagonal elements.
-\FastICA{} uses PCA to transform $X$ into a new matrix $X'$ of the same size
+\cmbica{} uses PCA to transform $X$ into a new matrix $X'$ of the same size
 which has the covariance matrix equal to unity. Doing so is important for the
-application of the \FastICA\ algorithm.
+application of the \FastICA{} algorithm.
 
-The method used by \FastICA\ to transform $X$ into $X'$ is a standard technique
+The method used by \cmbica{} to transform $X$ into $X'$ is a standard technique
 and is described in \citet[ch.~1]{JolliffePCA}. It requires to build a $n
 \times n$ matrix with the eigenvectors of the covariance matrix (a symmetric
 real matrix -- this grants that the eigenvalues are all real) sorted according
@@ -863,7 +863,7 @@ In this section we implement the code which applies masks to the maps. The main
 motivation behind masking is that some parts of the sky (e.g.\ the galactic
 plane) are more challenging for ICA methods because the assumptions regarding
 statistical independence do not hold. Therefore, to improve the ability of
-\FastICA{} to separate the components it is often necessary to tell the program
+\cmbica{} to separate the components it is often necessary to tell the program
 to skip some pixels in the processing. This is the purpose of a \emph{mask}.
 
 A mask is a map of the same resolution (i.e.\ the \texttt{NSIDE} value in a
@@ -884,7 +884,7 @@ that $\left|b(\vec{\gamma})\right| < b$ will be masked. This is called
 \begin{figure}[tbf]
     \centering
     \includegraphics{mask-sketch.pdf}
-    \caption{\label{fig:masking} How masking works in \FastICA{}. The above
+    \caption{\label{fig:masking} How masking works in \cmbica{}. The above
 figure shows a set of two maps $a$ and $b$, and a boolean mask (\texttt{true}
 values are represented as gray squares, whereas \texttt{false} values are empty
 squares). The bottom part of the figure shows the result, which is used as
@@ -893,7 +893,7 @@ purpose of the \texttt{apply\_mask} routine, while the vice-versa is
 implemented by \texttt{unapply\_mask}.}
 \end{figure}
 
-From the point of view of the FastICA algorithm, ``masking'' the data means
+From the point of view of the \FastICA{} algorithm, ``masking'' the data means
 simply to remove certain pixels from the input passed to [[run_fastica]]. See
 fig.~\ref{fig:masking}. This is done by the [[apply_mask]] function:
 <<Function definitions>>=
@@ -946,6 +946,16 @@ def unapply_mask (maps, mask, fill_value = -1e-6):
     return result
 @ %def unapply_mask
 
+We need now a function which produces a mask for the galactic plane given some
+value of the latitude $b$ where to do the cut. This is the job of
+[[galactic_mask]]:
+<<Function definitions>>=
+def galactic_mask (latitude, nside, ordering = 'RING'):
+    'Return a mask which cuts all the pixels whose latitude is below *latitude*.'
+
+    # Not implemented yet!
+    return None
+@ %def galactic_mask
 
 \appendix
 
@@ -958,5 +968,5 @@ Underlined references point to the definition of the symbol.
 
 \nowebindex
 
-\bibliography{tomica}
+\bibliography{cmbica}
 \end{document}

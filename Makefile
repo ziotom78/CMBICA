@@ -4,20 +4,20 @@ CPIF = cpif
 TEXI2PDF = texi2pdf
 IMAGES = mask-sketch.pdf
 
-SOURCE_NW = tomica.nw
-BIB_FILE = tomica.bib
+SOURCE_NW = cmbica.nw
+BIB_FILE = cmbica.bib
 
 .phony: all
 
-all: tomica.pdf tomica.py fastica.configspec
+all: cmbica.pdf cmbica.py fastica.configspec
 
-tomica.pdf: tomica.tex $(IMAGES)
+cmbica.pdf: cmbica.tex $(IMAGES)
 	$(TEXI2PDF) --batch --pdf $<
 
-tomica.tex: $(SOURCE_NW) $(BIB_FILE)
+cmbica.tex: $(SOURCE_NW) $(BIB_FILE)
 	$(NOWEAVE) -n -delay -index $< | $(CPIF) $@
 
-tomica.py: $(SOURCE_NW)
+cmbica.py: $(SOURCE_NW)
 	$(NOTANGLE) $< | $(CPIF) $@
 
 %.pdf: %.asy
