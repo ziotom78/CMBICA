@@ -1,0 +1,350 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+\section{The main program}
+\label{sec:Main}
+
+\cmbica{} is a single-run program. This means that every time the
+program is executed, it performs just \emph{one} analysis and then
+exits. Performing multiple analyses (i.e.\ in a Monte Carlo
+simulation) requires the user to run the program multiple times.
+
+Unlike the Fortran 90 implementation of \FastICA{} (by D.~Maino, C.~Burigana),
+the current implementation does not allow the user to interactively insert the
+input needed for the program (e.g.\ the path to the FITS files containing the
+maps), but instead it requires the user to provide a \emph{parameter file}
+containing all the information necessary to run the program in batch mode.
+
+The program can be run in two modes:
+\begin{enumerate}
+\item In the normal mode, the user specifies a list of FITS maps to be
+processed by the program in a parameter file, together with all the relevant
+settings desired for the analysis (e.g.\ whether to use a mask or not).
+
+\item For debugging and development purposes, \cmbica{} can be run in
+\emph{test mode}. Doing so will make the program execute a number of internal
+consistency checks that ensure the code behaves as expected and then quits. The
+average user is not likely to use this feature.
+\end{enumerate}
+
+In the following paragraphs we are going to first define a number of functions
+dealing with user-interface tasks (e.g.\ interpreting the parameter file,
+initializing the logging system\ldots). The overall shape of the main program
+will finally be provided in sect.~\ref{sec:mainProgram}.
+
+
+\subsection{Command-line parsing}
+\label{sec:commandLineParsing}
+
+To parse the command-line we use the \texttt{optparse} Python library:
+<<Import statements>>=
+from optparse import OptionParser
+@
+
+The following function creates and initializes a variable of type
+[[OptionParser]], which is then used to parse the contents of [[sys.argv]]:
+
+<<Function definitions>>=
+def parse_command_line ():
+    '''Parse the command line using an OptionParser object.
+
+    Return a (OPTIONS, ARGS) pair.'''
+
+    parser = OptionParser (usage = 'Usage: %prog [OPTIONS] PARAM_FILE',
+                           version = '%%prog %s' % VERSION,
+                           description = 'Apply the FastICA algorithm to'
+                           + 'a set of Healpix maps')
+
+    parser.add_option ('-l', '--log-level', dest = 'log_level',
+                       type = 'string', default = 'info',
+                       help = 'Specify the logging level '
+                       + '(choices: "debug", "info", "warning", '
+                       + '"error", "critical"). '
+                       + 'Default is "info".')
+    parser.add_option ('--log-file', dest = 'log_file', type = 'string',
+                       help = 'Name of the file where to write log '
+                       + 'messages (if not specified, stderr will be used.)',
+                       default = '')
+
+    parser.add_option ('--test', dest = 'test_mode', action = 'store_true',
+                       help = 'Run a number of test cases and quit.')
+    parser.set_defaults (test_mode = False)
+
+    return parser.parse_args ()
+@ %def parse_command_line
+
+Many of the options allow the user to configure the way the program logs its
+activities. See sect.~\ref{sec:logging} for further details.
+
+
+\subsection{Initialization of the logging system}
+\label{sec:logging}
+
+\cmbica{} uses the \texttt{logging} Python library to write
+information/warning/error messages. They can be sent either to standard error
+or to a file. We include the module in the main program using the
+[[log]] shorthand:
+<<Import statements>>=
+import logging as log
+@
+
+Function [[init_logging]]\ is used to initialize the logging system using the
+preferences specified within the command-line. There are two flags used to
+configure the system: \texttt{--log-level} specifies the types of messages to
+be logged, and \texttt{--log-file} specifies the file name where to write log
+messages (if not specified, messages are printed to the standard error stream).
+The two parameters are passed through the [[options]]\ dictionary (which is
+built by the [[parse_command_line]] function):
+
+<<Function definitions>>=
+def init_logging (options):
+    '''Initialize the logging system.
+
+    `options' is a dictionary of the command-line options provided by the
+    user.'''
+
+    log_levels = { 'debug'    : log.DEBUG,
+                   'info'     : log.INFO,
+                   'warning'  : log.WARNING,
+                   'error'    : log.ERROR,
+                   'critical' : log.CRITICAL }
+
+    format = '[%(asctime)s %(levelname)s] %(message)s'
+    if options.log_file:
+        log.basicConfig (filename = options.log_file,
+                         filemode = 'w',
+                         format = format,
+                         level = log_levels[options.log_level])
+    else:
+        log.basicConfig (format = format,
+                         level = log_levels[options.log_level])
+@ %def init_logging
+
+
+\subsection{Definition of the fields allowed in the parameter file}
+\label{sec:paramFileParsing}
+
+We read the parameter file specified on the command line using the
+ConfigObj\footnote{The users acquainted with the ConfigObj library are probably
+used to ``config files'' instead of ``parameter files''. Here we follow the
+convention used by a number of modules in the Planck/LFI pipeline.} class:
+<<Import statements>>=
+from configobj import ConfigObj
+from validate import Validator
+@
+
+In function [[read_param_file]]\ we build a [[Validator]]\ to check the syntax
+of the parameter file and set the default values. The meaning of each parameter
+(e.g. [[mask_file]]) will be explained in the next sections.
+
+<<Function definitions>>=
+def read_param_file (args):
+    'Read the parameter file. `args'' is the list of command-line arguments.'
+
+    if len (args) != 1:
+        log.critical ('Error: you must provide the name of ' +
+                      'one parameter file on the command line.')
+        sys.exit (1)
+
+    dict = {
+        'map_file_names': 'string_list (min = 2)',
+        'source_path'   : 'string (default = ".")',
+	'mask_file'     : 'string (default = "")',
+	'mask_latitude' : 'float (default = -1.0)'
+    }
+    param_validator = Validator (dict)
+    params = ConfigObj (args[0],
+                        configspec = 'fastica.configspec')
+    params.validate (param_validator)
+
+    return params
+@ %def read_param_file map_file_names source_path mask_file mask_latitude
+
+
+\subsection{Reading the input files}
+
+The file names to be specified for [[map_file_names]]\ must be separated by a
+comma. Each name can be specified in the following ways:
+\begin{enumerate}
+\item The plain file name, optionally prepended by an absolute or relative path:
+\begin{verbatim}
+/opt/data/dmr/dmr_31a_4yr.fits
+\end{verbatim}
+
+\item As above, followed by a colon ('\verb|:|') and a zero-based integer
+number specifying the column number in the FITS file to be used:
+\begin{verbatim}
+/opt/data/dmr/dmr_31a_4yr.fits:4
+\end{verbatim}
+\end{enumerate}
+
+The [[normalize_map_file_names]]\ function takes as input a list of $N$ strings in one of
+the forms listed above and returns a list of $N$ tuples each composed by the
+undecorated file name and the integer index (0 is the default):
+<<Function definitions>>=
+def split_file_names (x):
+    '''Given `x' (a list of N strings), return a N-element list containing
+    2-tuples of the form (file,idx), where `idx' is either 0 or a number at the
+    end of `x[i]'. The default for `idx' (when not specified) is 0.
+
+    >>> split_file_names (['f1.fits', 'f2.fits:0', 'f3.fits:5'])
+    [('f1.fits', 0), ('f2.fits', 0), ('f3.fits', 5)]
+    '''
+
+    result = []
+    for cur_file in x:
+        cur_split = cur_file.split (':')
+        if len (cur_split) == 1:
+            cur_split = (cur_split[0], 0)
+        else:
+            cur_split[1] = int (cur_split[1])
+
+        result.append (tuple (cur_split))
+
+    return result
+@ %def split_file_names
+
+When the program reads a set of maps specified by the user, it must assess
+whether they are compatible with the requirements of \cmbica, i.e.\ they must
+have the same pixel ordering scheme and the same resolution. We start by
+defining a function which checks if the elements of a list are all equal:
+<<Function definitions>>=
+def all_equal (x):
+    '''Return True if all the elements of `x' (a list or a tuple) are equal.
+
+    >>> all_equal ([1, 1, 1])
+    True
+    >>> all_equal (['A', 'A', 'B', 'A'])
+    False'''
+
+    return np.all ([elem == x[0] for elem in x])
+@ %def all_equal
+
+The [[all_equal]] function is the core of the following
+[[check_map_hdr_consistency]], which takes a set of FITS headers
+(the [[headers]] argument must be a list or tuple of dictionaries) and compares
+the values of [[NSIDE]]\ and [[ORDERING]]. The function quits the program if
+such field do not have the same value among the headers:
+<<Function definitions>>=
+def check_map_hdr_consistency (headers):
+    '''Given a set of Healpix headers (dictionaries), checks for their
+    consistency. The function only returns if all went ok, otherwise the
+    program quits.'''
+
+    if not all_equal ([x['NSIDE'] for x in headers]):
+        log.critical ('Maps do not have the same value for NSIDE')
+
+    if not all_equal ([x['ORDERING'] for x in headers]):
+        log.critical ('Maps do not have the same value for ORDERING')
+@ %def check_map_hdr_consistency
+
+Function [[read_healpix_files]]\ reads a set of map files (specified through
+[[(file,idx)]]\ pairs so that we can use [[split_file_names]]\ here) and checks
+for their consistency by comparing ther headers.  This is accomplished by using
+the [[h = True]]\ flag in calling [[healpy.read_map]], so that the result is a
+pair containing the array of pixels and the header (note that we convert the
+header into a dictionary: this is mandatory for using
+[[check_map_hdr_consistency]]).
+
+<<Function definitions>>=
+def read_healpix_files (map_files):
+    '''Read a set of N map files and return a NxM matrix, where M is the number
+    of pixels in each map.
+
+    Each element of `map_files' must be a (name,idx) tuple specifying both the
+    FITS file name and the column index within the file.'''
+
+    maps = []
+    headers = []
+    for (MAP_FILE_NAME, COLUMN) in map_files:
+        log.info ('Reading column %d of file %s' % (COLUMN, MAP_FILE_NAME))
+        cur_map = healpy.read_map (MAP_FILE_NAME, COLUMN,
+                                   nest = None, h = True)
+
+        maps.append (cur_map[0])
+        headers.append (dict (cur_map[1]))
+
+    check_map_hdr_consistency (headers)
+    log.debug ('The maps appear to be consistent, NPIXELS = %d'
+               % maps[0].size)
+    return maps
+@ %def read_healpix_files
+
+We have to import HealPy in the main program, of course:
+<<Import statements>>=
+import healpy
+@
+
+\subsection{Output of the Results and Clean Up}
+
+As this is still a test program, our only ``results'' are the parameters we
+have read from the parameter file. So we do nothing at the moment:
+<<Save and print the results>>=
+print "WHITENING_MATRIX ="
+print WHITENING_MATRIX
+
+print "DEWHITENING_MATRIX ="
+print DEWHITENING_MATRIX
+
+# Save the whitened maps
+for i in xrange (WHITENED_MAPS.shape[0]):
+    file_name = 'out%d.fits' % i
+    log.info ('Writing file %s (%d pixels)'
+              % (file_name, len (WHITENED_MAPS[i,:])))
+    healpy.write_map (file_name, WHITENED_MAPS[i,:])
+@
+
+At the end, it is better to de-allocate any memory we acquired during the
+procressing. (This is not strictly necessary, as the operating system will do
+this for us. But it is always a good thing to do, as if the memory got
+corrupted during the execution of the program because of some bugs, we would
+get a segmentation fault here signaling the bug.)
+<<Clean up>>=
+# Clean up
+@
+
+
+\subsection{Definition of the main program}
+\label{sec:mainProgram}
+
+Having put all the necessary functions in shape, we can now provide the main
+skeleton of the program:
+<<*>>=
+#!/usr/bin/env python
+
+import sys
+import os
+import numpy as np
+
+<<Import statements>>
+
+VERSION = '2.0.0'
+
+<<Function definitions>>
+
+(OPTIONS, ARGS) = parse_command_line ()
+
+if OPTIONS.test_mode:
+    import doctest
+
+    doctest.testmod ()
+    sys.exit (0)
+
+init_logging (OPTIONS)
+log.info ('Execution started, CMBica %s', VERSION)
+
+PARAMS = read_param_file (ARGS)
+FULL_MAP_NAMES = [os.path.join (PARAMS['source_path'], x)
+                  for x in PARAMS['map_file_names']]
+MAPS = read_healpix_files (split_file_names (FULL_MAP_NAMES))
+MAPS_WO_MONOPOLE = remove_monopole_from_maps (MAPS)
+(WHITENING_MATRIX, DEWHITENING_MATRIX) = whiten_maps (MAPS_WO_MONOPOLE)
+WHITENED_MAPS = np.dot (WHITENING_MATRIX, MAPS_WO_MONOPOLE)
+SEPARATION_MATRIX = run_fastica (WHITENED_MAPS)
+<<Save and print the results>>
+<<Clean up>>
+
+log.info ('Execution ended')
+@
+
+We have still to define the behavior of [[whiten_maps]]\ and [[run_fastica]].
+This is going to be done in sect.~\ref{sec:CMBICAAlgorithms}.

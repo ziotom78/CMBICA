@@ -1,0 +1,216 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+\subsection{The \FastICA{} algorithm}
+
+\FastICA{} is an iterative ICA algorithm for the separation of foregrounds and CMB
+signals from a set of sky maps at different frequencies. The algorithm is
+analogous to a self-learning neural network
+\citep{2000BaccigalupiNNinForegroundSeparation}, but it grants cubic
+convergence. The algorithm and the proof of convergence have been described by
+\citet{1997HyvarinenFastICA}. 
+
+The input of \FastICA{} is a set of $m$ maps each with $n$ pixels. We shall
+consider this set of data as a $n \times m$ real matrix, which we denote with
+$X$. The covariance matrix of $X$ must be unity. Since this condition is not
+generally met for real-world maps, the \cmbica{} program implements a
+\emph{quasi-whitening} pre-processing on the maps which transforms $X$ into a
+matrix $X'$ which satisfies the condition. Such pre-processing is fully
+described in sect.~\ref{sec:whitening}.
+
+The output of \cmbica{} is a $m \times m$ real invertible matrix $W$ such that $W
+X$ provides a $n \times m$ matrix applied separates the components. This
+means that each row $w_i$ of $W$ contains the ``weights'' for each map in $X$
+that produce the $i$-th component. Unfortunately \FastICA{} is able to
+reconstruct the separated maps only up to a normalization constant. This means
+that e.g.\ if $X$ already contains separated components, then $W$ will be a
+generic real diagonal matrix instead of the unity matrix.
+
+\FastICA{} requires the following steps to be performed \emph{for each component to be
+reconstructed}:
+
+\begin{enumerate}
+\item Let $k \leftarrow 0$.
+\item \label{item:fastICAIteration} Take a random versor $\vers{w}_k$ with $m$
+components.  \item If $g$ and $g'$ are respectively an invertible function from
+$\mathbb{R}^+$ to $\mathbb{R}$ and its derivative, let
+\begin{equation}
+\label{eq:fastICAIteration}
+\vers{w}_{k+1} \leftarrow E \Bigl(\vect{x} g \bigl(\vers{w}^T_k \cdot \vect{x}\bigr)
+\Bigr) - \vect{x} \cdot E \Bigl( g' \bigl(\vers{w}^T_k \bigr) \Bigr),
+\end{equation}
+where $E(\cdot)$ is the average operation. The purpose of $g$ is to introduce a
+nonlinear step in the process to increase the convergence speed.
+\citet{1997HyvarinenFastICA} use $g(u) = u^3$, while \citet{2002MainoFastICA}
+propose three different functions: $g(u) = u^3$, $g(u) = \tanh u$, $g(u) = \exp
+(-u^2)$.
+
+\item Normalize $\vers{w}_{k+1}$ by dividing it by its norm. \item If $\left|
+\vers{w}^T_{k+1} \cdot \vers{w}_k \right|$ is not sufficiently close to unity,
+let $k \leftarrow k + 1$ and repeat from point~\ref{item:fastICAIteration}.
+\end{enumerate}
+
+The last value of $\vers{w}^T$ obtained by this process provides an estimate of
+$\lim_{k\rightarrow\infty} \vers{w}_k$ and is a row of the matrix $W$ which
+performs the component separation.  To extract all the components from the $m$
+maps instead of just one (i.e.\ to estimate all the rows of matrix $W$), the
+algorithm must be modified in order for the $i$-th component to be searched in
+a space orthogonal to the previous\footnote{Not doing so would allow for the
+case where at the $i$-th iteration the starting vector $w$ (randomly chosen)
+would make the algorithm moving towards a component we already found!} $i - 1$.
+
+Since the algorithm requires versors (i.e.\ versors with unity norm), we start
+defining a function which divides a vector by its norm:
+
+<<Function definitions>>=
+def normalize_vector (v):
+    'Return "v" divided by its norm.'
+
+    norm = np.sqrt (np.dot (v, v))
+    if norm > 0.0:
+        return v / norm
+    else:
+        return 0.0   # Leave null vectors untouched
+@ %def normalize_vector
+
+The overall shape of [[run_fastica]]\ is provided here:
+<<Function definitions>>=
+def run_fastica (input_maps, g,
+                 max_iterations = 1000,
+                 max_num_of_failures = 3,
+                 threshold = 1.0e-6):
+    '''Run the FastICA algorithm on `input_maps' (a n x m matrix), using g
+    as the non-linear function (g(u) must return a pair containing the
+    value of the function and of its first derivative in u).'''
+
+    <<Initialize the variables used by [[run_fastica]]>>
+    for cur_signal in xrange (num_of_components):
+        converged = False
+        
+        <<Initialize versor [[w]]>>
+        for cur_iteration in xrange (max_iterations):
+            <<Take off the component of [[w]]\ parallel to the other components>>
+            <<Update [[w]]>>
+            <<Check for convergence>>
+
+        if not converged:
+            <<Warn for a component not having converged>>
+
+    return 0
+@ %def run_fastica
+
+Two important variables, [[num_of_pixels]]\ ($n$) and [[num_of_components]]\
+($m$), are initialized by using the shape of the matrix [[input_maps]]:
+<<Initialize the variables used by [[run_fastica]]>>=
+num_of_pixels     = input_maps.shape[0]
+num_of_components = input_maps.shape[1]
+@
+
+The mixing matrix\footnote{We stress again that such matrix must be applied to
+the \emph{whitened maps}.} $B$ is of order $m \times m$ and is zero when the
+main loop starts. It will be updated once each new component is separated:
+<<Initialize the variables used by [[run_fastica]]>>=
+B = np.zeros ((num_of_components, num_of_components))
+@
+
+The code requires to start from some random versor $w$. We choose a vector
+where each component is a uniformly distributed number in $[-0.5, 0.5]$:
+<<Initialize versor [[w]]>>=
+w = normalize_vector (np.random.rand (num_of_components) - 0.5)
+@ %def w
+
+At each iteration we take out the component of $\vers{w}$ which is along any of
+the previous components we have detected so far, in order to make the algorithm
+looking for a truly \emph{new} component. Since performing such operation puts
+into the estimate of $\vers{w}$ the estimation error of $B$, we perform such
+projection only during the first iterations of the algorithm\footnote{Using the
+words of \citet{1997HyvarinenFastICA}, we are allowing some time for $\vers{w}$
+to ``fall into the basin of attraction of one of the fixed points''.}:
+<<Take off the component of [[w]]\ parallel to the other components>>=
+if cur_iteration < 4:
+    w = w - np.dot (B, np.doc (np.transpose (B), w))
+@ The formula we are using here is taken from
+\citet[sect.~3.1.2]{1997HyvarinenFastICA}:
+\[
+w \leftarrow w - B \cdot \bigl( B^T w \bigr),
+\]
+where $B$ is the mixing matrix of the whitened maps. Note that in general $B$
+has the following shape after the $j$-th iteration:
+\begin{equation}
+B = 
+\begin{pmatrix}
+w^1_1 & w^1_2 & \dots & w^1_n \\
+w^2_1 & w^2_2 & \dots & w^2_n \\
+\hdotsfor[2]{4} \\
+w^j_1 & w^j_2 & \dots & w^j_n \\
+0     & 0     & \dots & 0     \\
+\hdotsfor[2]{4} \\
+0     & 0     & \dots & 0     \\
+\end{pmatrix},
+\end{equation}
+where each $\vers{w}^k$ is the weight versor for the $k$-th component.
+
+We now apply eq.~\eqref{eq:fastICAIteration} to [[w]]:
+<<Update [[w]]>>=
+wold = w  # Save the current value of w for convergence check later
+g_value, gder_value = g (np.dot (np.transpose (input_maps), w))
+w = (np.dot (input_maps, g_value) - np.sum (gder_value) * w) / num_of_pixels
+@ %def wold
+
+The convergence check compares the value of [[w]]\ with [[wold]]: if they are
+sufficiently close, then the $B$ matrix is updated and the code quits the inner
+cycle:
+<<Check for convergence>>=
+if np.abs (np.dot (np.transpose (wold), w) - 1.0) < threshold:
+    converged = True 
+    B[:,cur_signal] = w
+    log.debug ('Component #%d converged after %d iterations' %
+	       (cur_signal, cur_iteration + 1))
+    break
+@
+
+
+If a component failed to converge, we must warn the user. Such situation might
+happen without really invalidating the final result --- however, if \emph{too
+many} components fail to converge (the exact number is specified by the
+parameter [[max_num_of_failures]]) then there is the possibility that something
+in the input signal is wrong. In such case we will raise a severe error and
+halt the execution:
+<<Warn for a component not having converged>>=
+log.warning ('Component #%d not converged after %d iterations' %
+             (cur_signal, max_iterations))
+failed_convergences = failed_convergences + 1
+if failed_convergences > max_num_of_failures:
+    log.error ('Too many components did not converge -- aborting.')
+    sys.exit (1)
+@
+
+The [[failed_convergences]]\ variable contains the number of components for
+which \FastICA{} did not converge fast enough:
+<<Initialize the variables used by [[run_fastica]]>>=
+failed_convergences = 0
+@ %def failed_convergences
+
+
+\subsubsection{Non-linear functions}
+
+In this section we define a number of implementations for the $g$ non-linear
+function used by the \FastICA{} algorithm (see eq.~\ref{eq:fastICAIteration}).
+Each function accepts an array of non-negative reals $\vect{u}$ and return a
+pair containing the value of $g (\vect{u})$ and $g' (\vect{u})$.
+
+<<Function definitions>>=
+def fastICApow3 (u):
+    square = u**2  # Reuse this value for g(u) and g'(u)
+    return (u * square, 3.0 * square)
+
+def fastICApow5 (u):
+    fourthPower = u**4  # Reuse this value for g(u) and g'(u)
+    return (u * fourthPower, 5.0 * fourthPower)
+
+def fastICAtanh (u):
+    return (np.tanh (u), np.sinh(u)**2)
+
+def fastICAgauss (u):
+    exponential = np.exp (-u**2)  # Reuse this value for g(u) and g'(u)
+    return (exponential, -2.0 * u * exponential)
+@

@@ -1,0 +1,144 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+\subsection{Whitening the Noise in the Maps}
+\label{sec:whitening}
+
+The so-called \emph{whitening step} of the \FastICA{} algorithm aims to improve
+the statistical properties of the signal needed by the algorithm itself by
+using the principles of Principal Component Analysis (PCA).
+
+Principal Component Analysis is a special kind of orthogonal transformation
+(rotation) that, when applied to a set of $n$ vectors $\{e_i\}_{i=1}^n$,
+produces a new set of $n$ vectors $\{e_i'\}_{i=1}^n$ sorted in decreasing order
+according to their variance. The point is that the most interesting stuff has
+been moved to the first $m$ vectors (with $m$ being some number smaller than
+$n$ so that $e_{m+1}$ is the first vector that can be considered ``almost''
+constant).  Thus, PCA is a way to reduce the dimensionality of a dataset by
+``selecting'' preferred directions and throwing away those components that do
+not vary too much.
+
+\begin{figure}[tbf]
+    \centering
+    \includegraphics[width=0.45\textwidth]{correlation-dmr.pdf}
+    \includegraphics[width=0.45\textwidth]{correlation-dmr-whitened.pdf}
+    \caption{\label{fig:correlationDMR} Left: correlation between the (Healpix)
+sky maps produced by COBE DMR at 31\,GHz and 53\,GHz. The correlation
+coefficient $r$ is 0.72. Right: the same maps after having been whitened: now
+the correlation is nearly zero (the covariance matrix of the two maps is the $2
+\times 2$ identity matrix).}
+\end{figure}
+
+One can easily see that the sky shows some correlation at different
+frequencies: take for instance fig.~\ref{fig:correlationDMR}, which visually
+shows the correlation between the 31\,GHz and the 53\,GHz channels of COBE-DMR.
+This means that the $n \times m$ matrix $X$ containing data from the $m$ maps
+has a covariance matrix which has nonzero off-diagonal elements.
+\cmbica{} uses PCA to transform $X$ into a new matrix $X'$ of the same size
+which has the covariance matrix equal to unity. Doing so is important for the
+application of the \FastICA{} algorithm.
+
+The method used by \cmbica{} to transform $X$ into $X'$ is a standard technique
+and is described in \citet[ch.~1]{JolliffePCA}. It requires to build a $n
+\times n$ matrix with the eigenvectors of the covariance matrix (a symmetric
+real matrix -- this grants that the eigenvalues are all real) sorted according
+to the absolute value of their eigenvalues in decreasing order. Such matrix is
+orthogonal and therefore represents a base change: in our case it is equal to
+the ``whitening matrix'' which does the PCA. Mathematically, if $\Sigma$ is the
+covariance matrix of the noise and $C$ the covariance matrix of the map (i.e.\
+signal \emph{and} noise), the orthogonal matrix which represents the base
+change is $(C - \Sigma)^{1/2}$.  Therefore, if the maps are stored in matrix
+$X$, PCA produces a new set of maps $X'$ according to the following formula:
+\begin{equation}
+\label{eq:mapPCA}
+X' = (C - \Sigma)^{-1/2} X.
+\end{equation}
+The covariance matrix $\Sigma'$ for the new maps is
+\begin{equation}
+\label{eq:sigmaPCA}
+\Sigma' = (C - \Sigma)^{-1/2} \Sigma (C - \Sigma)^{1/2},
+\end{equation}
+It is easy to prove that $X'$ has a covariance matrix equal to unity.
+
+We start defining two basic functions: the first one,
+[[remove_monopole_from_maps]], removes the average value from a set of maps and
+returns a $n\times m$ matrix, with $n$ being the number of pixels per map and
+$m$ the number of components:
+<<Function definitions>>=
+def remove_monopole_from_maps (maps):
+    'Remove the monopole from every map and return a numpy array.'
+    map_matrix = np.array (maps)
+    for idx in xrange (len (maps)):
+        map_matrix[idx,:] = maps[idx] - np.mean (maps[idx])
+
+    return map_matrix
+@ %def remove_monopole_from_maps
+
+The second function, [[get_ordered_eig]], returns a tuple containing the
+eigenvalues and eigenvectors of the real symmetric matrix [[x]], sorted
+accorted to their decreasing magnitude:
+<<Function definitions>>=
+def get_ordered_eig (x):
+    '''Return (V, D) where V and D are the eigenvalues and
+    eigenvectors of `x' (a real symmetrix matrix). They are
+    sorted in decreasing order of the eigenvalues' magnitudes.
+
+    >>> get_ordered_eig (np.array ([[-2, 3], [3, -10]]))[0]
+    array([-11.,  -1.])
+    '''
+
+    (evals, evects) = linalg.eigh (x)
+
+    # Sort the eigenvalues in decreasing order
+    perm = np.argsort (-np.abs (evals))
+    return (evals[perm], evects[:,perm])
+@ %def get_ordered_eig
+Since the [[linalg]]\ module is part of the [[scipy]]\ package, we must import it
+at the beginning of the main program:
+<<Import statements>>=
+from scipy import linalg
+@
+
+We have now all the necessary pieces to write [[whiten_maps]]. Note that we are
+not going to call [[remove_monopole_from_maps]]\ within [[whiten_maps]], since
+we are going to use the matrix of zero-mean maps also outside [[whiten_maps]].
+Therefore, we assume here that [[map_matrix]]\ is the result of a previous call
+to [[remove_monopole_from_maps]]:
+<<Function definitions>>=
+def whiten_maps (map_matrix):
+    '''Given a matrix representing `m' zero-mean maps, return a pair containing
+    the whitening/dewhitening matrices.'''
+
+    <<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>
+    <<Compute the whitening and dewhitening matrices>>
+    return (whitening_matrix, dewhitening_matrix)
+@ %def whiten_maps
+\noindent where [[map_matrix]]\ is the $X$ in eq.~\eqref{eq:mapPCA}, a $n\times
+m$ matrix containing the $n$ maps each with $m = 12\times \mathrm{NSIDE}^2$
+pixels.
+
+Estimating the covariance matrix $C$ is a simple matter of multiplying $X$ for
+$X^t$ and scaling by the number of maps. We can use the BLAS function [[dgemm]]
+to do everything in one operation. Having $C$ we can look for its eigenvalues
+and eigenvectors:
+<<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>=
+cov_matrix = linalg.fblas.dgemm (1.0 / map_matrix.shape[1],
+                                 map_matrix,
+                                 map_matrix,
+                                 trans_b = True)
+
+(evals, evects) = get_ordered_eig (cov_matrix)
+
+log.info ("Principal components: %s" % str (evals))
+@
+
+Finally, we compute the whitening and dewhitening matrices $(C - \Sigma)^{1/2}$
+and $(C - \Sigma)^{-1/2}$. The former is used to whiten the maps.
+<<Compute the whitening and dewhitening matrices>>=
+sqrt_evals = np.sqrt (np.abs (evals))
+whitening_matrix = np.dot (evects,
+                           np.dot (np.diag (1.0 / sqrt_evals),
+                                   np.transpose (evects)))
+dewhitening_matrix = np.dot (evects,
+                             np.dot (np.diag (sqrt_evals),
+                                     np.transpose (evects)))
+@

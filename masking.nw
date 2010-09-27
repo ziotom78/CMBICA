@@ -1,0 +1,101 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+\section{Masking}
+
+In this section we implement the code which applies masks to the maps. The main
+motivation behind masking is that some parts of the sky (e.g.\ the galactic
+plane) are more challenging for ICA methods because the assumptions regarding
+statistical independence do not hold. Therefore, to improve the ability of
+\cmbica{} to separate the components it is often necessary to tell the program
+to skip some pixels in the processing. This is the purpose of a \emph{mask}.
+
+A mask is a map of the same resolution (i.e.\ the \texttt{NSIDE} value in a
+Healpix map) which contains only boolean values\footnote{Or integer values,
+provided that a nonzero value means ``true'' and a zero value means
+``false''.}. If a pixel is not ``true'', then the corresponding pixel in the
+input maps is excluded by the processing.
+
+A mask can be specified using two methods:
+\begin{enumerate}
+\item By providing the program with a boolean map.
+\item By specifying a latitude angle $b$ (in galactical coordinates) so that
+every pixel pointing at $\vec\gamma$ whose latitude $b(\vec{\gamma})$ is such
+that $\left|b(\vec{\gamma})\right| < b$ will be masked. This is called
+\emph{galactic masking}, as it is a very simple way to mask the Galaxy.
+\end{enumerate}
+
+\begin{figure}[tbf]
+    \centering
+    \includegraphics{mask-sketch.pdf}
+    \caption{\label{fig:masking} How masking works in \cmbica{}. The above
+figure shows a set of two maps $a$ and $b$, and a boolean mask (\texttt{true}
+values are represented as gray squares, whereas \texttt{false} values are empty
+squares). The bottom part of the figure shows the result, which is used as
+input for the subsequent processing steps. Going from top to bottom is the
+purpose of the \texttt{apply\_mask} routine, while the vice-versa is
+implemented by \texttt{unapply\_mask}.}
+\end{figure}
+
+From the point of view of the \FastICA{} algorithm, ``masking'' the data means
+simply to remove certain pixels from the input passed to [[run_fastica]]. See
+fig.~\ref{fig:masking}. This is done by the [[apply_mask]] function:
+<<Function definitions>>=
+def apply_mask (maps, mask):
+    '''Apply *mask* (a boolean array) to *maps* (a NxM matrix).
+
+    >>> apply_mask ([[1, 2, 3], [4, 5, 6]], [True, False, False])
+    array([[2, 3],
+           [5, 6]])
+    '''
+
+    maps = np.array (maps)
+    mask = np.array (mask)
+
+    inverted_mask = np.negative (mask)
+    unmasked_pixels = len (np.nonzero (inverted_mask)[0])
+    num_of_maps = maps.shape[0]
+
+    result = np.empty ((num_of_maps, unmasked_pixels), dtype = maps.dtype)
+    for cur_column in xrange (num_of_maps):
+	result[cur_column,:] = maps[cur_column,inverted_mask]
+	
+    return result
+@ %def apply_mask
+
+Of course, we need a specular function which puts back things in place at the
+end. This is the purpose of [[unapply_mask]]. It requires a [[fill_value]]
+parameter which is used to ``fill the blanks'' in the result.
+<<Function definitions>>=
+def unapply_mask (maps, mask, fill_value = -1e-6):
+    '''Do the inverse transformation of apply_mask.
+
+    >>> unapply_mask ([[2, 3], [5, 6]], [True, False, False], 9)
+    array([[9, 2, 3],
+           [9, 5, 6]])
+    '''
+
+    maps = np.array (maps)
+    mask = np.array (mask)
+
+    num_of_pixels = mask.size
+    num_of_maps   = maps.shape[0]
+    inverted_mask = np.negative (mask)
+
+    result = np.empty ((num_of_maps, num_of_pixels), dtype = maps.dtype)
+    for cur_column in xrange (num_of_maps):
+	result[cur_column,mask] = fill_value
+	result[cur_column,inverted_mask] = maps[cur_column,:]
+
+    return result
+@ %def unapply_mask
+
+We need now a function which produces a mask for the galactic plane given some
+value of the latitude $b$ where to do the cut. This is the job of
+[[galactic_mask]]:
+<<Function definitions>>=
+def galactic_mask (latitude, nside, ordering = 'RING'):
+    'Return a mask which cuts all the pixels whose latitude is below *latitude*.'
+
+    # Not implemented yet!
+    return None
+@ %def galactic_mask
