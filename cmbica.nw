@@ -152,11 +152,14 @@ a new matrix $X'$ whose correlation matrix is unity --- this property is then
 used extensively by the \FastICA{} algorithm.
 \end{enumerate}
 
-\input{fastica}
+\input{test}
 
 \input{whitening}
 
+\input{fastica}
+
 \input{masking}
+
 
 \appendix
 

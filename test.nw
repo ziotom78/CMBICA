@@ -1,0 +1,48 @@
+% -*- mode: Noweb; noweb-code-mode: python-mode -*-
+
+\subsection{Data Used to Test the Implementation}
+\label{sec:test}
+
+Before actually writing the numerical code which constitutes the core of the
+application, we define a number of datasets that we shall use to test the
+correctness of our implementation. This will be done using the [[unittest]]\ {}
+Python module, which provides the class [[TestCase]]\ for this purpose.
+
+What we are going to do is to create a base test class that when instanced will
+create a number of signals (i.e. 1-D vectors) with a very simple shape and
+which satisfy the hypotheses of the \FastICA{} algorithm. We will mix such
+signals (of course using a \emph{known} mixing matrix), and then we shall apply
+the mathematical functions we are going to write to these data, to test if the
+original signals have been reconstructed well enough or not.
+
+The initialization code for a class derived from [[unittest.TestCase]]\ goes
+into the [[setUp]]\ method:
+<<Test cases>>=
+class FastICABaseTestCase (unittest.TestCase):
+    def setUp (self):
+	<<Build the test source signals>>
+	<<Mix the test source signals>>
+@ %def FastICABaseTestCase
+
+For the sake of simplicity, we only define two signals, sampled with a
+resolution $\tau = 0.1$ for a time $T = 1000$:
+<<Build the test source signals>>=
+tau = 0.1
+T = 1000
+time = tau * np.arange (T / tau)
+@ The two signals are [[self.x1]], a sinusoid with period $t = 20$, and
+[[self.x2]], a sawtooth wave with period $t = 27$:
+<<Build the test source signals>>=
+self.x1 = np.sin (2 * np.pi * time / 20)
+self.x2 = time / 27 - np.floor (time / 27)
+@ The two signals are combined using the mixing matrix [[A]]:
+<<Mix the test source signals>>=
+self.A = np.array ([[0.291, -0.544],
+		    [0.656,  0.557]])
+mixed_signals = np.dot (self.A, np.array ([self.x1, self.x2]))
+@ The $N\times2$ matrix [[mixed_signals]]\ is then used to initialize
+[[self.s1]]\ and [[self.s2]], the two signals to be used in the tests:
+<<Mix the test source signals>>=
+self.s1 = mixed_signals[0,:]
+self.s2 = mixed_signals[1,:]
+@

@@ -14,17 +14,9 @@ input needed for the program (e.g.\ the path to the FITS files containing the
 maps), but instead it requires the user to provide a \emph{parameter file}
 containing all the information necessary to run the program in batch mode.
 
-The program can be run in two modes:
-\begin{enumerate}
-\item In the normal mode, the user specifies a list of FITS maps to be
+When running the program, the user specifies a list of FITS maps to be
 processed by the program in a parameter file, together with all the relevant
 settings desired for the analysis (e.g.\ whether to use a mask or not).
-
-\item For debugging and development purposes, \cmbica{} can be run in
-\emph{test mode}. Doing so will make the program execute a number of internal
-consistency checks that ensure the code behaves as expected and then quits. The
-average user is not likely to use this feature.
-\end{enumerate}
 
 In the following paragraphs we are going to first define a number of functions
 dealing with user-interface tasks (e.g.\ interpreting the parameter file,
@@ -64,10 +56,6 @@ def parse_command_line ():
                        help = 'Name of the file where to write log '
                        + 'messages (if not specified, stderr will be used.)',
                        default = '')
-
-    parser.add_option ('--test', dest = 'test_mode', action = 'store_true',
-                       help = 'Run a number of test cases and quit.')
-    parser.set_defaults (test_mode = False)
 
     return parser.parse_args ()
 @ %def parse_command_line
@@ -153,12 +141,21 @@ def read_param_file (args):
     }
     param_validator = Validator (dict)
     params = ConfigObj (args[0],
-                        configspec = 'fastica.configspec')
+                        configspec = _CMBICA_CONFIGSPEC.split ('\n'))
     params.validate (param_validator)
 
     return params
 @ %def read_param_file map_file_names source_path mask_file mask_latitude
 
+The [[_CMBICA_CONFIGSPEC]] variable is part of the global definitions for the
+program:
+<<Global definitions>>=
+_CMBICA_CONFIGSPEC = """
+map_file_names = string_list (min = 2)
+source_path = string (default = ".")
+mask_file = string (default = "")
+mask_latitude = float (default = -1.0)"""
+@ %def _CMBICA_CONFIGSPEC
 
 \subsection{Reading the input files}
 
@@ -314,36 +311,34 @@ skeleton of the program:
 import sys
 import os
 import numpy as np
+import unittest
 
 <<Import statements>>
 
 VERSION = '2.0.0'
 
+<<Global definitions>>
 <<Function definitions>>
+<<Test cases>>
 
-(OPTIONS, ARGS) = parse_command_line ()
+if __name__ == "__main__":
+    (OPTIONS, ARGS) = parse_command_line ()
 
-if OPTIONS.test_mode:
-    import doctest
+    init_logging (OPTIONS)
+    log.info ('Execution started, CMBica %s', VERSION)
 
-    doctest.testmod ()
-    sys.exit (0)
+    PARAMS = read_param_file (ARGS)
+    FULL_MAP_NAMES = [os.path.join (PARAMS['source_path'], x)
+		      for x in PARAMS['map_file_names']]
+    MAPS = read_healpix_files (split_file_names (FULL_MAP_NAMES))
+    MAPS_WO_MONOPOLE = remove_monopole_from_maps (MAPS)
+    (WHITENING_MATRIX, DEWHITENING_MATRIX) = whiten_maps (MAPS_WO_MONOPOLE)
+    WHITENED_MAPS = np.dot (WHITENING_MATRIX, MAPS_WO_MONOPOLE)
+    SEPARATION_MATRIX = run_fastica (WHITENED_MAPS, fastICApow3)
+    <<Save and print the results>>
+    <<Clean up>>
 
-init_logging (OPTIONS)
-log.info ('Execution started, CMBica %s', VERSION)
-
-PARAMS = read_param_file (ARGS)
-FULL_MAP_NAMES = [os.path.join (PARAMS['source_path'], x)
-                  for x in PARAMS['map_file_names']]
-MAPS = read_healpix_files (split_file_names (FULL_MAP_NAMES))
-MAPS_WO_MONOPOLE = remove_monopole_from_maps (MAPS)
-(WHITENING_MATRIX, DEWHITENING_MATRIX) = whiten_maps (MAPS_WO_MONOPOLE)
-WHITENED_MAPS = np.dot (WHITENING_MATRIX, MAPS_WO_MONOPOLE)
-SEPARATION_MATRIX = run_fastica (WHITENED_MAPS)
-<<Save and print the results>>
-<<Clean up>>
-
-log.info ('Execution ended')
+    log.info ('Execution ended')
 @
 
 We have still to define the behavior of [[whiten_maps]]\ and [[run_fastica]].

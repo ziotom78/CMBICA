@@ -127,7 +127,7 @@ words of \citet{1997HyvarinenFastICA}, we are allowing some time for $\vers{w}$
 to ``fall into the basin of attraction of one of the fixed points''.}:
 <<Take off the component of [[w]]\ parallel to the other components>>=
 if cur_iteration < 4:
-    w = w - np.dot (B, np.doc (np.transpose (B), w))
+    w = w - np.dot (B, np.dot (np.transpose (B), w))
 @ The formula we are using here is taken from
 \citet[sect.~3.1.2]{1997HyvarinenFastICA}:
 \[
@@ -213,4 +213,18 @@ def fastICAtanh (u):
 def fastICAgauss (u):
     exponential = np.exp (-u**2)  # Reuse this value for g(u) and g'(u)
     return (exponential, -2.0 * u * exponential)
-@
+@ %def fastICApow3 fastICApow5 fastICAtanh fastICAgauss
+
+
+\subsubsection{Definition of a Test Case}
+
+Using [[FastICABaseTestCase]] (defined in sect.~\ref{sec:test}) as the base
+class, we provide here the implementation of a test class for the
+[[run_fastica]] function:
+
+<<Test cases>>=
+class FastICATestCase (FastICABaseTestCase):
+    def test_run_fastica (self):
+	result = run_fastica (np.array ([self.s1, self.s2]), fastICApow3) 
+	self.assertEqual (result, 163)
+@ %def FastICATestCase
