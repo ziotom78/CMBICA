@@ -12,6 +12,8 @@ DEFS_FILES = $(SOURCE_NW:%.nw=%.defs)
 BIB_FILE = cmbica.bib
 INDEX_FILE = all.defs
 
+vpath %.nw src
+
 .PHONY: all test
 
 all: cmbica.pdf cmbica.py
