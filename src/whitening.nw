@@ -72,6 +72,16 @@ def remove_monopole_from_maps (maps):
 
     return map_matrix
 @ %def remove_monopole_from_maps
+The test case for this function is provided by the following method (to be
+incorporated in a test class derived from FastICABaseTestCase, in order to have
+the proper definition for [[self.x1]]\ and [[self.x2]], see below):
+<<Test for [[remove_monopole]]>>=
+def test_remove_monopole (self):
+    result = remove_monopole_from_maps (np.array ([self.x1,
+						   self.x2]))
+    self.assertAlmostEqual (np.mean (result[0,:]), 0.0)	
+    self.assertAlmostEqual (np.mean (result[1,:]), 0.0)	
+@ %def test_remove_monopole
 
 The second function, [[get_ordered_eig]], returns a tuple containing the
 eigenvalues and eigenvectors of the real symmetric matrix [[x]], sorted
@@ -80,11 +90,7 @@ accorted to their decreasing magnitude:
 def get_ordered_eig (x):
     '''Return (V, D) where V and D are the eigenvalues and
     eigenvectors of `x' (a real symmetrix matrix). They are
-    sorted in decreasing order of the eigenvalues' magnitudes.
-
-    >>> get_ordered_eig (np.array ([[-2, 3], [3, -10]]))[0]
-    array([-11.,  -1.])
-    '''
+    sorted in decreasing order of the eigenvalues' magnitudes.'''
 
     (evals, evects) = linalg.eigh (x)
 
@@ -98,6 +104,47 @@ at the beginning of the main program:
 from scipy import linalg
 @
 
+The test case for [[get_ordered_eig]] uses a very simple matrix for the purpose:
+\[
+A = \begin{pmatrix}
+-2 & 3 \\
+ 3 & -10
+\end{pmatrix},
+\]
+which has -1 and -11 as eigenvalues. The eigenvectors are not uniquely
+determined\footnote{If $\vect{v}$ is an eigenvector whose eigenvalue is
+$\lambda$, then any $\alpha \vect{v}$ will be the same for any real number
+$\alpha \not= 0$.}, so we cannot compare the result of [[get_ordered_eig]] with
+a fixed vector.  Therefore, to write the test we will simply stick to the
+definition of ``eigenvector'': $\vect{v}$ is an eigenvector of $A$ with
+eigenvalue $\lambda$ if $A\cdot\vect{v} = \lambda\vect{v}$, that is if
+\[
+A\cdot\vect{v} - \lambda \vect{v} = 0.
+\]
+The following code implements the formula above to check the correctness of the
+eigenvectors:
+<<Test for [[get_ordered_eig]]>>=
+def test_get_ordered_eig (self):
+    # Check the eigenvalues
+    A = np.array ([[-2, 3], [3, -10]])
+    result = get_ordered_eig (A)
+    self.assertEqual (len (result), 2)
+    assert np.allclose (result[0], np.array([-11.,  -1.]))
+
+    # Check the eigenvectors
+    self.assertEqual (len (result[1]), 2)
+    eigenvects = result[1] * np.sqrt (10)
+    print "eigenvectors = ", result[1]
+    for i in (0, 1):
+	v = result[1][:,i]
+	a_times_v = np.dot (A, v)
+	assert np.allclose (a_times_v - result[0][i] * v,
+			    np.zeros (v.size))
+@ %def test_get_ordered_eig
+As we did above for [[test_remove_monopole]], we are going to make this a
+method of a class derived from [[FastICABaseTestCase]]\ (this motivates the
+[[self]] parameter).
+
 We have now all the necessary pieces to write [[whiten_maps]]. Note that we are
 not going to call [[remove_monopole_from_maps]]\ within [[whiten_maps]], since
 we are going to use the matrix of zero-mean maps also outside [[whiten_maps]].
@@ -109,7 +156,7 @@ def whiten_maps (map_matrix):
     the whitening/dewhitening matrices.'''
 
     <<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>
-    <<Compute the whitening and dewhitening matrices>>
+    <<Compute [[whitening_matrix]] and [[dewhitening_matrix]]>>
     return (whitening_matrix, dewhitening_matrix)
 @ %def whiten_maps
 \noindent where [[map_matrix]]\ is the $X$ in eq.~\eqref{eq:mapPCA}, a $n\times
@@ -133,7 +180,7 @@ log.info ("Principal components: %s" % str (evals))
 
 Finally, we compute the whitening and dewhitening matrices $(C - \Sigma)^{1/2}$
 and $(C - \Sigma)^{-1/2}$. The former is used to whiten the maps.
-<<Compute the whitening and dewhitening matrices>>=
+<<Compute [[whitening_matrix]] and [[dewhitening_matrix]]>>=
 sqrt_evals = np.sqrt (np.abs (evals))
 whitening_matrix = np.dot (evects,
                            np.dot (np.diag (1.0 / sqrt_evals),
@@ -141,6 +188,21 @@ whitening_matrix = np.dot (evects,
 dewhitening_matrix = np.dot (evects,
                              np.dot (np.diag (sqrt_evals),
                                      np.transpose (evects)))
+@ %def whitening_matrix dewhitening_matrix
+
+The test case for [[whiten_maps]] is reported here. It simply checks that the
+covariance matrix of the transformed signal matrix is unity:
+<<Test for [[whiten_maps]]>>=
+def test_whiten_maps (self):
+    result = whiten_maps (self.mixed_signals)
+    print "cov (self.mixed_signals) = ", np.cov (self.mixed_signals)
+    print "result[0].shape = ", result[0].shape
+    print "self.mixed_signals.shape = ", self.mixed_signals.shape
+    whitened_sigs = np.dot (result[0], self.mixed_signals)
+    print "whitened_sigs.shape = ", whitened_sigs.shape
+    print "cov (whitened_sigs) = ", np.cov (whitened_sigs)
+    assert np.allclose (np.cov (whitened_sigs),
+			np.identity (2))
 @
 
 \subsubsection{Definition of a Test Case}
@@ -148,21 +210,10 @@ dewhitening_matrix = np.dot (evects,
 Using [[FastICABaseTestCase]] (defined in sect.~\ref{sec:test}) as the base
 class, we provide here the implementation of a test class for the
 [[whiten_maps]] function:
-
 <<Test cases>>=
 class WhitenTestCase (FastICABaseTestCase):
-    def test_remove_monopole (self):
-	result = remove_monopole_from_maps (np.array ([self.x1,
-						       self.x2]))
-	self.assertAlmostEqual (np.mean (result[0,:]), 0.0)	
-	self.assertAlmostEqual (np.mean (result[1,:]), 0.0)	
-
-    def test_get_ordered_eig (self):
-	result = get_ordered_eig (np.array ([[-2, 3], [3, -10]]))
-	self.assertEqual (len (result), 2)
-	self.assertTrue (np.allclose (result[0], np.array([-11.,  -1.])))
-
-	self.assertEqual (len (result[1]), 2)
-	self.assertTrue (np.allclose (np.sqrt(10) * result[1][0], np.array([-1., -3.])))
-	self.assertTrue (np.allclose (np.sqrt(10) * result[1][1], np.array([ 3., -1.])))
+    <<Test for [[remove_monopole]]>>
+    <<Test for [[get_ordered_eig]]>>
+    <<Test for [[whiten_maps]]>>
 @ %def WhitenTestCase
+where we have simply put together the test cases implemented in this section.
