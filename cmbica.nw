@@ -80,7 +80,7 @@ pdfborder={0 0 0}}
 \bibliographystyle{plainnat}
 
 \title{\cmbica}
-\author{D.~Maino, C.~Burigana, M.~Tomasi}
+\author{M.~Tomasi}
 \maketitle
 
 \begin{abstract}
@@ -96,10 +96,10 @@ maps.
 \cmbica{} is a Python program which runs the \FastICA{} algorithm
 \citep{1997HyvarinenFastICA} on a number of sky maps at different frequencies,
 attempting to separate foreground components from the Cosmic Microwave
-Background (CMB). It is a novel incarnation of the old FastICA program by
-\citet{2002MainoFastICA}, and it exploits the fact that each foreground
-component has a non-gaussian (i.e.\ white) profile distinct from everything
-else, and that the CMB is the only gaussian contribution to the sky
+Background (CMB). It is a novel incarnation of the old FastICA program
+described by \citet{2002MainoFastICA}, and it exploits the fact that each
+foreground component has a non-gaussian (i.e.\ white) profile distinct from
+everything else, and that the CMB is the only gaussian contribution to the sky
 temperature. This approach is used by a number of analysis tools similar to
 \cmbica{}, e.g.\ SMICA, AltICA and others.
 

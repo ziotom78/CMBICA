@@ -23,7 +23,7 @@ means that each row $w_i$ of $W$ contains the ``weights'' for each map in $X$
 that produce the $i$-th component. Unfortunately \FastICA{} is able to
 reconstruct the separated maps only up to a normalization constant. This means
 that e.g.\ if $X$ already contains separated components, then $W$ will be a
-generic real diagonal matrix instead of the unity matrix.
+generic real diagonal matrix instead of the unit matrix.
 
 \FastICA{} requires the following steps to be performed \emph{for each component to be
 reconstructed}:
