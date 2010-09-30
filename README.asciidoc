@@ -32,6 +32,8 @@ components:
   library to load FITS files;
 - http://code.google.com/p/healpy/[HealPy], a Python port of the famous
   http://healpix.jpl.nasa.gov/[Healpix] library.
+- To create the documentation, you need to have LaTeX and the `texi2pdf` script
+  installed.
 
 Python libraries can easily be installed using the `easy_install` script or
 other platform-specific tools like `port` under Mac or `apt-get` under Ubuntu
