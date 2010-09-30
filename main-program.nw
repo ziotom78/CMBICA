@@ -36,10 +36,11 @@ The following function creates and initializes a variable of type
 [[OptionParser]], which is then used to parse the contents of [[sys.argv]]:
 
 <<Function definitions>>=
-def parse_command_line ():
+def parse_command_line (args = sys.argv[1:]):
     '''Parse the command line using an OptionParser object.
 
-    Return a (OPTIONS, ARGS) pair.'''
+    Return a (OPTIONS, ARGS) pair.  If the "args" argument is not specified,
+    then the command line parameters will be taken from sys.argv.'''
 
     parser = OptionParser (usage = 'Usage: %prog [OPTIONS] PARAM_FILE',
                            version = '%%prog %s' % VERSION,
@@ -57,8 +58,30 @@ def parse_command_line ():
                        + 'messages (if not specified, stderr will be used.)',
                        default = '')
 
-    return parser.parse_args ()
+    return parser.parse_args (args = args)
 @ %def parse_command_line
+The behavior of the function is verified by the following test case, which
+checks both the possibility that (1) everything is specified on the command
+line and (2) that the user chooses to rely on default values (for those
+parameter where this is applicable):
+<<Test cases>>=
+def test_parse_command_line ():
+    cmd_line = ['-l', 'debug', '--log-file', 'test_file',
+		'cobe.par', 'wmap.par']
+    result = parse_command_line (cmd_line)
+
+    nose.tools.assert_equal (result[0].log_level, cmd_line[1])
+    nose.tools.assert_equal (result[0].log_file, cmd_line[3])
+    nose.tools.assert_equal (len (result[1]), 2)
+    nose.tools.assert_equals (result[1], cmd_line[4:6])
+
+    cmd_line = ['cobe.par']
+    result = parse_command_line (cmd_line)
+
+    assert result[0].log_level  # Ensure that this is defined someway
+    nose.tools.assert_equal (len (result[1]), 1)
+    nose.tools.assert_equal (result[1], cmd_line)
+@ %def test_parse_command_line
 
 Many of the options allow the user to configure the way the program logs its
 activities. See sect.~\ref{sec:logging} for further details.
@@ -222,17 +245,36 @@ The [[all_equal]] function is the core of the following
 the values of [[NSIDE]]\ and [[ORDERING]]. The function quits the program if
 such field do not have the same value among the headers:
 <<Function definitions>>=
-def check_map_hdr_consistency (headers):
+def check_map_hdr_consistency (headers, test = False):
     '''Given a set of Healpix headers (dictionaries), checks for their
     consistency. The function only returns if all went ok, otherwise the
-    program quits.'''
+    program quits (unless "test" is True: in this case it returns False).'''
 
     if not all_equal ([x['NSIDE'] for x in headers]):
-        log.critical ('Maps do not have the same value for NSIDE')
+        if not test: log.critical ('Maps do not have the same value for NSIDE')
+	return False
 
     if not all_equal ([x['ORDERING'] for x in headers]):
-        log.critical ('Maps do not have the same value for ORDERING')
+        if not test: log.critical ('Maps do not have the same value for ORDERING')
+	return False
+
+    return True
 @ %def check_map_hdr_consistency
+
+To test the correctness of our implementation, we write the following test case:
+<<Test cases>>=
+def test_check_map_hdr_consistency ():
+    correct_hdrs = [ { 'NSIDE': 512, 'ORDERING': 'NESTED' },
+		     { 'NSIDE': 512, 'ORDERING': 'NESTED' } ]
+    wrong_hdrs1  = [ { 'NSIDE': 512, 'ORDERING': 'NESTED' },
+		     { 'NSIDE': 256, 'ORDERING': 'NESTED' } ]
+    wrong_hdrs2  = [ { 'NSIDE': 512, 'ORDERING': 'NESTED' },
+		     { 'NSIDE': 512, 'ORDERING': 'RING' } ]
+    nose.tools.assert_true (check_map_hdr_consistency (correct_hdrs, test = True))
+    nose.tools.assert_false (check_map_hdr_consistency (wrong_hdrs1, test = True))
+    nose.tools.assert_false (check_map_hdr_consistency (wrong_hdrs2, test = True))
+
+@ %def test_check_map_hdr_consistency
 
 Function [[read_healpix_files]]\ reads a set of map files (specified through
 [[(file,idx)]]\ pairs so that we can use [[split_file_names]]\ here) and checks
@@ -312,6 +354,7 @@ import sys
 import os
 import numpy as np
 import unittest
+import nose.tools
 
 <<Import statements>>
 

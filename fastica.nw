@@ -63,13 +63,18 @@ defining a function which divides a vector by its norm:
 
 <<Function definitions>>=
 def normalize_vector (v):
-    'Return "v" divided by its norm.'
+    '''Return "v" divided by its norm. Leave it untouched if it is zero.
+
+    >>> normalize_vector (np.array ([4, 3]))
+    array([ 0.8,  0.6])
+    >>> normalize_vector (np.array ([0, 0]))
+    array([0, 0])'''
 
     norm = np.sqrt (np.dot (v, v))
     if norm > 0.0:
         return v / norm
     else:
-        return 0.0   # Leave null vectors untouched
+        return v   # Leave null vectors untouched
 @ %def normalize_vector
 
 The overall shape of [[run_fastica]]\ is provided here:
@@ -82,6 +87,7 @@ def run_fastica (input_maps, g,
     as the non-linear function (g(u) must return a pair containing the
     value of the function and of its first derivative in u).'''
 
+    log.debug ('"run_fastica" started')
     <<Initialize the variables used by [[run_fastica]]>>
     for cur_signal in xrange (num_of_components):
         converged = False
@@ -95,14 +101,16 @@ def run_fastica (input_maps, g,
         if not converged:
             <<Warn for a component not having converged>>
 
-    return 0
+    return True
 @ %def run_fastica
 
 Two important variables, [[num_of_pixels]]\ ($n$) and [[num_of_components]]\
 ($m$), are initialized by using the shape of the matrix [[input_maps]]:
 <<Initialize the variables used by [[run_fastica]]>>=
-num_of_pixels     = input_maps.shape[0]
-num_of_components = input_maps.shape[1]
+num_of_pixels     = input_maps.shape[1]
+num_of_components = input_maps.shape[0]
+log.debug ('Number of pixels: %d' % num_of_pixels)
+log.debug ('Number of components: %d' % num_of_components)
 @
 
 The mixing matrix\footnote{We stress again that such matrix must be applied to
