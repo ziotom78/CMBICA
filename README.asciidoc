@@ -1,0 +1,49 @@
+README for CMBICA
+=================
+
+Introduction
+------------
+CMBICA is a Python program to run the FastICA algorithm over maps of the
+microwave sky, with the intent to separate the signal of the Cosmic Microwave
+Background (CMB) from other foreground signals (like e.g. synchrotron). It is a
+complete rewrite of a Fortran90 program written by Carlo Burigana, Andrea
+Farusi and Davide Maino. This rewrite exploits a number of "new" programming
+concept, like the usage of http://www.literateprogramming.com/[literate
+programming] approach (using http://www.cs.tufts.edu/~nr/noweb/[Noweb]) and the
+extensive use of test cases to validate the code.
+
+Supported platforms
+-------------------
+
+CMBICA has been developed on Mac OS X 10.5 and 10.6, but it can be run also
+on Linux (and probably any other Unix machine). I am happy to implement patches
+that allow the library to be used on other systems as well.
+
+Installation
+------------
+Before compiling and installing the software, you have to install the following
+components:
+
+- http://www.python.org/[Python] (at least version 2.5) -- if you are using
+  a Unix system or Mac OS X, there are good chances that you already have
+  it;
+- http://numpy.scipy.org/[NumPy], a Python library;
+- http://www.stsci.edu/resources/software_hardware/pyfits[PyFITS], a Python
+  library to load FITS files;
+- http://code.google.com/p/healpy/[HealPy], a Python port of the famous
+  http://healpix.jpl.nasa.gov/[Healpix] library.
+
+Python libraries can easily be installed using the `easy_install` script or
+other platform-specific tools like `port` under Mac or `apt-get` under Ubuntu
+Linux. Remember however that some of them might not have been ported to your
+platform yet (this is most likely for HealPy).
+
+To create both the Python executable and the documentation (in PDF) format,
+just run `make` (or `gmake`).
+
+Usage
+-----
+To use the program, you have to write a _parameter file_, that is a text file
+containing the information needed by the program to do its job. This includes
+the path to all the FITS files (in the Healpix format) containing the sky maps,
+the output files to write and optionally the mask to use in the process.
