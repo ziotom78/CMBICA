@@ -9,8 +9,8 @@ IMAGES = mask-sketch.pdf
 SOURCE_DIR = src
 
 SOURCE_NW = cmbica.nw main-program.nw test.nw whitening.nw fastica.nw masking.nw
-TEX_FILES = $(SOURCE_NW:%.nw=%.tex)
-DEFS_FILES = $(SOURCE_NW:%.nw=%.defs)
+TEX_FILES := $(SOURCE_NW:%.nw=%.tex)
+DEFS_FILES := $(SOURCE_NW:%.nw=%.defs)
 BIB_FILE = cmbica.bib
 INDEX_FILE = all.defs
 
