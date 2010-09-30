@@ -12,7 +12,7 @@ DEFS_FILES = $(SOURCE_NW:%.nw=%.defs)
 BIB_FILE = cmbica.bib
 INDEX_FILE = all.defs
 
-.phony: all test
+.PHONY: all test
 
 all: cmbica.pdf cmbica.py
 
@@ -40,4 +40,6 @@ $(INDEX_FILE): $(DEFS_FILES)
 	$(NODEFS) $< | cpif $@
 
 test: cmbica.py
-	nosetests -v --with-doctest $<
+	nosetests -v \
+	    --with-coverage --cover-package=cmbica \
+	    --with-doctest $<
