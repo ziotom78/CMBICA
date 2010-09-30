@@ -46,4 +46,4 @@ $(INDEX_FILE): $(DEFS_FILES)
 test: cmbica.py
 	nosetests -v \
 	    --with-coverage --cover-package=cmbica \
-	    --with-doctest $<
+	    --with-doctest --cover-html $<
