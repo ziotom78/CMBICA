@@ -211,12 +211,12 @@ def test_whiten_maps (self):
 
 \subsubsection{Definition of a Test Case}
 
-Using [[FastICABaseTestCase]] (defined in sect.~\ref{sec:test}) as the base
+Using [[NumericalTestCase]] (defined in sect.~\ref{sec:test}) as the base
 class, we provide here the implementation of a test class for the
 [[whiten_maps]] function:
 <<Test cases>>=
-class WhitenTestCase (FastICABaseTestCase):
-    <<Test for [[remove_monopole]]>>
+class WhitenTestCase (NumericalTestCase):
+    <<Test for [[remove_monopole_from_maps]]>>
     <<Test for [[get_ordered_eig]]>>
     <<Test for [[whiten_maps]]>>
 @ %def WhitenTestCase
