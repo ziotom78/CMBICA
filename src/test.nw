@@ -18,11 +18,11 @@ original signals have been reconstructed well enough or not.
 The initialization code for a class derived from [[unittest.TestCase]]\ goes
 into the [[setUp]]\ method:
 <<Test cases>>=
-class FastICABaseTestCase (unittest.TestCase):
+class NumericalTestCase (unittest.TestCase):
     def setUp (self):
 	<<Build the test source signals>>
 	<<Mix the test source signals>>
-@ %def FastICABaseTestCase
+@ %def NumericalTestCase
 
 For the sake of simplicity, we only define two signals, sampled with a
 resolution $\tau = 0.1$ for a time $T = 1000$:

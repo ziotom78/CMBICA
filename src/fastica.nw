@@ -226,12 +226,12 @@ def fastICAgauss (u):
 
 \subsubsection{Definition of a Test Case}
 
-Using [[FastICABaseTestCase]] (defined in sect.~\ref{sec:test}) as the base
+Using [[NumericalTestCase]] (defined in sect.~\ref{sec:test}) as the base
 class, we provide here the implementation of a test class for the
 [[run_fastica]] function:
 
 <<Test cases>>=
-class FastICATestCase (FastICABaseTestCase):
+class FastICATestCase (NumericalTestCase):
     def test_run_fastica (self):
 	result = run_fastica (np.array ([self.s1, self.s2]), fastICApow3) 
 	self.assertEqual (result, 163)
