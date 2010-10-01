@@ -1,6 +1,7 @@
 % -*- mode: Noweb; noweb-code-mode: python-mode -*-
 
 \section{Masking}
+\label{sec:masking}
 
 In this section we implement the code which applies masks to the maps. The main
 motivation behind masking is that some parts of the sky (e.g.\ the galactic

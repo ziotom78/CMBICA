@@ -5,17 +5,18 @@
 
 The so-called \emph{whitening step} of the \FastICA{} algorithm aims to improve
 the statistical properties of the signal needed by the algorithm itself by
-using the principles of Principal Component Analysis (PCA).
+using the principles of Principal Component Analysis (PCA). Such improvement is
+performed before the application of \FastICA{}.
 
 Principal Component Analysis is a special kind of orthogonal transformation
 (rotation) that, when applied to a set of $n$ vectors $\{e_i\}_{i=1}^n$,
 produces a new set of $n$ vectors $\{e_i'\}_{i=1}^n$ sorted in decreasing order
 according to their variance. The point is that the most interesting stuff has
 been moved to the first $m$ vectors (with $m$ being some number smaller than
-$n$ so that $e_{m+1}$ is the first vector that can be considered ``almost''
-constant).  Thus, PCA is a way to reduce the dimensionality of a dataset by
-``selecting'' preferred directions and throwing away those components that do
-not vary too much.
+$n$ so that $e_{m+1}$ is the first vector whose variance is so small that can
+be considered almost constant).  Thus, PCA is a way to reduce the
+dimensionality of a dataset by ``selecting'' preferred directions and throwing
+away those components that do not vary too much.
 
 \begin{figure}[tbf]
     \centering
@@ -30,12 +31,12 @@ the correlation is nearly zero (the covariance matrix of the two maps is the $2
 
 One can easily see that the sky shows some correlation at different
 frequencies: take for instance fig.~\ref{fig:correlationDMR}, which visually
-shows the correlation between the 31\,GHz and the 53\,GHz channels of COBE-DMR.
-This means that the $n \times m$ matrix $X$ containing data from the $m$ maps
-has a covariance matrix which has nonzero off-diagonal elements.
-\cmbica{} uses PCA to transform $X$ into a new matrix $X'$ of the same size
-which has the covariance matrix equal to unity. Doing so is important for the
-application of the \FastICA{} algorithm.
+shows the correlation between the measurements of the 31\,GHz and the 53\,GHz
+channels of COBE/DMR.  This means that the $n \times m$ matrix $X$ containing
+data from the $m$ maps has a covariance matrix which has nonzero off-diagonal
+elements.  \cmbica{} uses PCA to transform $X$ into a new matrix $X'$ of the
+same size which has its covariance matrix equal to unity. Doing so is
+fundamental for the subsequent application of the \FastICA{} algorithm.
 
 The method used by \cmbica{} to transform $X$ into $X'$ is a standard technique
 and is described in \citet[ch.~1]{JolliffePCA}. It requires to build a $n

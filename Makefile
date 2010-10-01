@@ -20,9 +20,9 @@ vpath %.nw $(SOURCE_DIR)
 
 .PHONY: all test
 
-all: $(DOC_DIR)/cmbica.pdf cmbica.py
+all: cmbica.pdf cmbica.py
 
-$(DOC_DIR)/cmbica.pdf: $(TEX_FILES) $(BIB_FILE) $(IMAGES)
+cmbica.pdf: $(TEX_FILES) $(BIB_FILE) $(IMAGES)
 	$(TEXI2PDF) --batch --pdf $<
 	$(NOINDEX) $<
 	$(TEXI2PDF) --batch --pdf $<

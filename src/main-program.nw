@@ -3,20 +3,19 @@
 \section{The main program}
 \label{sec:Main}
 
-\cmbica{} is a single-run program. This means that every time the
-program is executed, it performs just \emph{one} analysis and then
-exits. Performing multiple analyses (i.e.\ in a Monte Carlo
-simulation) requires the user to run the program multiple times.
+\cmbica{} is a single-run program. This means that every time the program is
+executed, it performs just \emph{one} analysis and then exits. Performing
+multiple analyses (i.e.\ in a Monte Carlo simulation) requires the user to run
+the program multiple times.
 
-Unlike the Fortran 90 implementation of \FastICA{} (by D.~Maino, C.~Burigana),
-the current implementation does not allow the user to interactively insert the
+Unlike the Fortran implementation of \FastICA{} \citep{2002MainoFastICA}, the
+current implementation does not allow the user to interactively insert the
 input needed for the program (e.g.\ the path to the FITS files containing the
 maps), but instead it requires the user to provide a \emph{parameter file}
 containing all the information necessary to run the program in batch mode.
-
-When running the program, the user specifies a list of FITS maps to be
-processed by the program in a parameter file, together with all the relevant
-settings desired for the analysis (e.g.\ whether to use a mask or not).
+Using the information taken from this file, the program determines the FITS
+files containing the sky maps to load as well as a number of settings relevant
+for the analysis (e.g.\ whether to use a mask or not).
 
 In the following paragraphs we are going to first define a number of functions
 dealing with user-interface tasks (e.g.\ interpreting the parameter file,
@@ -91,20 +90,24 @@ activities. See sect.~\ref{sec:logging} for further details.
 \label{sec:logging}
 
 \cmbica{} uses the \texttt{logging} Python library to write
-information/warning/error messages. They can be sent either to standard error
+informational/warning/error messages. They can be sent either to standard error
 or to a file. We include the module in the main program using the
-[[log]] shorthand:
+[[log]]\ shorthand:
 <<Import statements>>=
 import logging as log
 @
 
-Function [[init_logging]]\ is used to initialize the logging system using the
-preferences specified within the command-line. There are two flags used to
-configure the system: \texttt{--log-level} specifies the types of messages to
-be logged, and \texttt{--log-file} specifies the file name where to write log
+The [[init_logging]]\ function is used to initialize the logging system using
+the preferences specified within the command-line. There are two flags used to
+configure the system:
+\begin{description}
+\item[\texttt{--log-level}] specifies the types of messages to
+be logged; 
+\item[\texttt{--log-file}] specifies the file name where to write log
 messages (if not specified, messages are printed to the standard error stream).
+\end{description}
 The two parameters are passed through the [[options]]\ dictionary (which is
-built by the [[parse_command_line]] function):
+returned by the [[parse_command_line]]\ function):
 
 <<Function definitions>>=
 def init_logging (options):
@@ -135,17 +138,18 @@ def init_logging (options):
 \label{sec:paramFileParsing}
 
 We read the parameter file specified on the command line using the
-ConfigObj\footnote{The users acquainted with the ConfigObj library are probably
-used to ``config files'' instead of ``parameter files''. Here we follow the
-convention used by a number of modules in the Planck/LFI pipeline.} class:
+ConfigObj\footnote{The user acquainted with the ConfigObj library is probably
+used to talk of ``config files'' instead of ``parameter files''. Here we follow
+the nomenclature used by the modules in the Planck/LFI pipeline.} class:
 <<Import statements>>=
 from configobj import ConfigObj
 from validate import Validator
 @
 
-In function [[read_param_file]]\ we build a [[Validator]]\ to check the syntax
-of the parameter file and set the default values. The meaning of each parameter
-(e.g. [[mask_file]]) will be explained in the next sections.
+The next function [[read_param_file]]\ we build a [[Validator]]\ to check the
+syntax of the parameter file to be read and to set their default values. The
+meaning of each parameter (e.g. [[mask_file]]) will be explained in the next
+sections.
 
 <<Function definitions>>=
 def read_param_file (args):
@@ -239,11 +243,11 @@ def all_equal (x):
     return np.all ([elem == x[0] for elem in x])
 @ %def all_equal
 
-The [[all_equal]] function is the core of the following
-[[check_map_hdr_consistency]], which takes a set of FITS headers
-(the [[headers]] argument must be a list or tuple of dictionaries) and compares
-the values of [[NSIDE]]\ and [[ORDERING]]. The function quits the program if
-such field do not have the same value among the headers:
+The [[all_equal]]\ function is the core of the following
+[[check_map_hdr_consistency]], which takes a set of FITS headers (the
+[[headers]]\ argument must be a list or tuple of dictionaries) and compares the
+values of [[NSIDE]]\ and [[ORDERING]]. The function quits the program if such
+field do not have the same value among the headers:
 <<Function definitions>>=
 def check_map_hdr_consistency (headers, test = False):
     '''Given a set of Healpix headers (dictionaries), checks for their
@@ -270,18 +274,18 @@ def test_check_map_hdr_consistency ():
 		     { 'NSIDE': 256, 'ORDERING': 'NESTED' } ]
     wrong_hdrs2  = [ { 'NSIDE': 512, 'ORDERING': 'NESTED' },
 		     { 'NSIDE': 512, 'ORDERING': 'RING' } ]
-    nose.tools.assert_true (check_map_hdr_consistency (correct_hdrs, test = True))
-    nose.tools.assert_false (check_map_hdr_consistency (wrong_hdrs1, test = True))
-    nose.tools.assert_false (check_map_hdr_consistency (wrong_hdrs2, test = True))
+    assert check_map_hdr_consistency (correct_hdrs, test = True)
+    assert not check_map_hdr_consistency (wrong_hdrs1, test = True)
+    assert not check_map_hdr_consistency (wrong_hdrs2, test = True)
 
 @ %def test_check_map_hdr_consistency
 
-Function [[read_healpix_files]]\ reads a set of map files (specified through
-[[(file,idx)]]\ pairs so that we can use [[split_file_names]]\ here) and checks
-for their consistency by comparing ther headers.  This is accomplished by using
-the [[h = True]]\ flag in calling [[healpy.read_map]], so that the result is a
-pair containing the array of pixels and the header (note that we convert the
-header into a dictionary: this is mandatory for using
+The [[read_healpix_files]]\ function reads a set of map files (specified
+through [[(file,idx)]]\ pairs so that we can use [[split_file_names]]\ here)
+and checks for their consistency by comparing ther headers.  This is
+accomplished by using the [[h = True]]\ flag in calling [[healpy.read_map]], so
+that the result is a pair containing the array of pixels and the header (note
+that we convert the header into a dictionary: this is mandatory for using
 [[check_map_hdr_consistency]]).
 
 <<Function definitions>>=
@@ -383,6 +387,3 @@ if __name__ == "__main__":
 
     log.info ('Execution ended')
 @
-
-We have still to define the behavior of [[whiten_maps]]\ and [[run_fastica]].
-This is going to be done in sect.~\ref{sec:CMBICAAlgorithms}.

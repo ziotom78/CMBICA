@@ -14,6 +14,7 @@
 \usepackage{amsmath}
 \usepackage{noweb}
 \usepackage{fancyhdr}
+\usepackage{url}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage{ccaption}
@@ -96,12 +97,12 @@ maps.
 \cmbica{} is a Python program which runs the \FastICA{} algorithm
 \citep{1997HyvarinenFastICA} on a number of sky maps at different frequencies,
 attempting to separate foreground components from the Cosmic Microwave
-Background (CMB). It is a novel incarnation of the old FastICA program
-described by \citet{2002MainoFastICA}, and it exploits the fact that each
-foreground component has a non-gaussian (i.e.\ white) profile distinct from
-everything else, and that the CMB is the only gaussian contribution to the sky
-temperature. This approach is used by a number of analysis tools similar to
-\cmbica{}, e.g.\ SMICA, AltICA and others.
+Background (CMB). It exploits the fact that each foreground component has a
+non-gaussian (i.e.\ white) profile distinct from everything else, and that the
+CMB is supposed to be the only gaussian contribution to the sky temperature.
+This approach is used by a number of analysis tools similar to \cmbica{}, e.g.\
+SMICA, AltICA and others. \cmbica{} is a novel incarnation of the old FastICA
+program described by \citet{2002MainoFastICA}
 
 The source code of \cmbica{} uses a number of Python libraries:
 \begin{enumerate}
@@ -114,42 +115,46 @@ par.~\ref{sec:logging}).
 \item ConfigObj, for reading, validating and interpreting parameter files (see
 par.~\ref{sec:paramFileParsing}).
 
-\item HealPy, for reading and writing FITS maps. Note that HealPy is
-based on Healpix \citep{2005GorskiHEALPix}.
+\item NumPy\footnote{\url{http://numpy.scipy.org/}.}, a library of low-level
+fast numerical routines.
 
-\item NumPy, a library of low-level fast numerical routines.
+\item SciPy\footnote{\url{http://www.scipy.org/}.}, a library of high-level
+numerical routines (mainly used to find eigenvalues and eigenvectors).
 
-\item SciPy, a library of high-level numerical routines (mainly used to find
-eigenvalues and eigenvectors).
+\item
+PyFits\footnote{\url{http://www.stsci.edu/resources/software_hardware/pyfits}},
+for reading and writing FITS files.
+
+\item HealPy\footnote{\url{http://code.google.com/p/healpy/}.}, for reading and
+writing FITS maps. Note that HealPy is based on Healpix.
+\citep{2005GorskiHEALPix}.
 \end{enumerate}
 This implementation of \cmbica{} has been created using the ``Literate
 Programming'' approach to development \citep{KnuthLiterateProgramming}. The
 [[noweb]]\ tool is required to create this documentation as well as the Python
-program to be run.
+program (\texttt{cmbica.py}) to be run.
 
 In this document we illustrate the implementation of \cmbica{}. The outline of
-the document is the following: \S~\ref{sec:Main} discusses the general behavior
-of the program (i.e.\ the implementation of [[main]]),
-\S~\ref{sec:CMBICAAlgorithms} implements the mathematical formulae of the
-\FastICA{} algorithm and the appendices contain ancillary classes and functions
-used by the program.
-
-
-\input{main-program}
+the document is the following: \S~\ref{sec:CMBICAAlgorithms} implements the
+mathematical formulae of the \FastICA{} algorithm, \S~\ref{sec:masking}
+discusses the implementation of a number of functions to mask unwanted portions
+of the sky (e.g.\ the Galaxy), and finally \S~\ref{sec:Main} implements
+general-purpose routines (e.g.\ for parsing command-line switches).
 
 \section{The Numerical Algorithms used in the Code}
 \label{sec:CMBICAAlgorithms}
 
 In this section we discuss the implementation of the mathematical formulae
-needed by the \FastICA{} algorithm. There are two algorithms that need to be
-implemented:
+needed by the \FastICA{} algorithm into \cmbica. There are two algorithms that
+need to be implemented:
 \begin{enumerate}
-\item The \FastICA{} algorithm itself;
 \item A method which improves the uncorrelatedness of the maps. Such process is
 called \emph{whitening} and is a step to be made \emph{before} applying the
 \FastICA{} algorithm. The reason is that whitening transforms data matrix $X$ into
 a new matrix $X'$ whose correlation matrix is unity --- this property is then
-used extensively by the \FastICA{} algorithm.
+used extensively by the \FastICA{} algorithm;
+
+\item The \FastICA{} algorithm itself.
 \end{enumerate}
 
 \input{test}
@@ -160,6 +165,11 @@ used extensively by the \FastICA{} algorithm.
 
 \input{masking}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\input{main-program}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \appendix
 
