@@ -62,8 +62,8 @@ It is easy to prove that $X'$ has a covariance matrix equal to unity.
 
 We start defining two basic functions: the first one,
 [[remove_monopole_from_maps]], removes the average value from a set of maps and
-returns a $n\times m$ matrix, with $n$ being the number of pixels per map and
-$m$ the number of components:
+returns a $n\times m$ matrix, with $n$ being the number of components and $m$
+the number of pixels per map:
 <<Function definitions>>=
 def remove_monopole_from_maps (maps):
     'Remove the monopole from every map and return a numpy array.'
@@ -74,9 +74,9 @@ def remove_monopole_from_maps (maps):
     return map_matrix
 @ %def remove_monopole_from_maps
 The test case for this function is provided by the following method (to be
-incorporated in a test class derived from FastICABaseTestCase, in order to have
+incorporated in a test class derived from NumericalTestCase, in order to have
 the proper definition for [[self.x1]]\ and [[self.x2]], see below):
-<<Test for [[remove_monopole]]>>=
+<<Test for [[remove_monopole_from_maps]]>>=
 def test_remove_monopole (self):
     result = remove_monopole_from_maps (np.array ([self.x1,
 						   self.x2]))
@@ -143,7 +143,7 @@ def test_get_ordered_eig (self):
 			    np.zeros (v.size))
 @ %def test_get_ordered_eig
 As we did above for [[test_remove_monopole]], we are going to make this a
-method of a class derived from [[FastICABaseTestCase]]\ (this motivates the
+method of a class derived from [[NumericalTestCase]]\ (this motivates the
 [[self]] parameter).
 
 We have now all the necessary pieces to write [[whiten_maps]]. Note that we are
@@ -152,11 +152,17 @@ we are going to use the matrix of zero-mean maps also outside [[whiten_maps]].
 Therefore, we assume here that [[map_matrix]]\ is the result of a previous call
 to [[remove_monopole_from_maps]]:
 <<Function definitions>>=
-def whiten_maps (map_matrix):
+def whiten_maps (map_matrix, remove_mean = True):
     '''Given a matrix representing `m' zero-mean maps, return a pair containing
-    the whitening/dewhitening matrices.'''
+    the whitening/dewhitening matrices. If each map has zero mean,
+    `remove_mean' can be set to False in order to save some execution time.'''
 
-    <<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>
+    if remove_mean:
+	no_mean_matrix = remove_monopole_from_maps (map_matrix)
+    else:
+	no_mean_matrix = map_matrix
+
+    <<Find the sorted eigenvalues of the covariance matrix for [[no_mean_matrix]]>>
     <<Compute [[whitening_matrix]] and [[dewhitening_matrix]]>>
     return (whitening_matrix, dewhitening_matrix)
 @ %def whiten_maps
@@ -165,13 +171,14 @@ m$ matrix containing the $n$ maps each with $m = 12\times \mathrm{NSIDE}^2$
 pixels.
 
 Estimating the covariance matrix $C$ is a simple matter of multiplying $X$ for
-$X^t$ and scaling by the number of maps. We can use the BLAS function [[dgemm]]
-to do everything in one operation. Having $C$ we can look for its eigenvalues
-and eigenvectors:
-<<Find the sorted eigenvalues of the covariance matrix for [[map_matrix]]>>=
-cov_matrix = linalg.fblas.dgemm (1.0 / map_matrix.shape[1],
-                                 map_matrix,
-                                 map_matrix,
+$X^t$ and scaling by the number of maps: provided that each map has the
+monopole (average) removed, this equals the definition of the covariance
+matrix. We can use the BLAS function [[dgemm]] to do everything in one
+operation. Having $C$ we can look for its eigenvalues and eigenvectors:
+<<Find the sorted eigenvalues of the covariance matrix for [[no_mean_matrix]]>>=
+cov_matrix = linalg.fblas.dgemm (1.0 / no_mean_matrix.shape[1],
+                                 no_mean_matrix,
+                                 no_mean_matrix,
                                  trans_b = True)
 
 (evals, evects) = get_ordered_eig (cov_matrix)
@@ -195,15 +202,11 @@ The test case for [[whiten_maps]] is reported here. It simply checks that the
 covariance matrix of the transformed signal matrix is unity:
 <<Test for [[whiten_maps]]>>=
 def test_whiten_maps (self):
-    result = whiten_maps (self.mixed_signals)
-    print "cov (self.mixed_signals) = ", np.cov (self.mixed_signals)
-    print "result[0].shape = ", result[0].shape
-    print "self.mixed_signals.shape = ", self.mixed_signals.shape
-    whitened_sigs = np.dot (result[0], self.mixed_signals)
-    print "whitened_sigs.shape = ", whitened_sigs.shape
-    print "cov (whitened_sigs) = ", np.cov (whitened_sigs)
+    no_mean_maps = remove_monopole_from_maps (self.mixed_signals)
+    result = whiten_maps (no_mean_maps, remove_mean = False)
+    whitened_sigs = np.dot (result[0], no_mean_maps)
     assert np.allclose (np.cov (whitened_sigs),
-			np.identity (2))
+			np.identity (2), atol = 1e-3)
 @
 
 \subsubsection{Definition of a Test Case}
