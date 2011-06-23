@@ -233,6 +233,9 @@ class, we provide here the implementation of a test class for the
 <<Test cases>>=
 class FastICATestCase (NumericalTestCase):
     def test_run_fastica (self):
-	result = run_fastica (np.array ([self.s1, self.s2]), fastICApow3) 
+	no_mean_maps = remove_monopole_from_maps (self.mixed_signals)
+	result = whiten_maps (no_mean_maps, remove_mean = False)
+	whitened_sigs = np.dot (result[0], no_mean_maps)
+	result = run_fastica (whitened_sigs, fastICApow3) 
 	self.assertEqual (result, 163)
 @ %def FastICATestCase
