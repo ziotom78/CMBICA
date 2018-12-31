@@ -1,6 +1,8 @@
 README for CMBICA
 =================
 
+**Warning**: This repository is currently archived.
+
 Introduction
 ------------
 CMBICA is a Python program to run the FastICA algorithm over maps of the
